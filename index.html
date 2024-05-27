@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+          name="viewport"
+          content="width=device-width, shrink-to-fit=0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+  />
+  <title>Three.js example</title>
+  <style>
+    #container, #canvas{
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
+
+    #canvas-html{
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 100;
+      /*background: rgba(0, 0, 0, 0.5);*/
+      pointer-events: none;
+    }
+
+    #css3dBgmesh * {
+        user-select: text;
+        pointer-events: auto;
+    }
+
+    #css3dBgmesh{
+        /*opacity: 0;*/
+        pointer-events: none !important;
+        background: transparent !important;
+    }
+    #css3dBgmesh *::selection {
+        background-color: #020202;
+    }
+
+  </style>
+  <style id="hstyle">
+      html,
+      body{
+          width: 100%;
+          height: 100%;
+          margin: 0;
+      }
+
+    #hpage{
+      background-image: linear-gradient( 68.1deg,  rgba(196,69,69,1) 9.2%, rgba(255,167,73,0.82) 25%, rgba(253,217,82,0.82) 43.4%, rgba(107,225,108,0.82) 58.2%, rgba(107,169,225,0.82) 75.1%, rgba(153,41,243,0.82) 87.3% );
+      /*width: 2048px;*/
+      /*height: 2048px;*/
+      font-size: 80px;
+        height: 100%;
+        overflow-y: scroll;
+        animation: a 2s linear infinite;
+    }
+    #hcontent{
+        padding: 100px;
+        color: black;
+    }
+    a{
+        color: blue;
+    }
+  :root {
+      /*line-height: 1.5;*/
+      /*font-weight: 400;*/
+      color-scheme: light dark;
+      background-color: #242424;
+
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+  }
+      .loader {
+          width: 100px;
+          margin-top: 20px;
+          min-height: 100px;
+          aspect-ratio: 1;
+          border: 10px solid #FFF;
+          border-bottom-color: #FF3D00;
+          border-radius: 50%;
+          box-sizing: border-box;
+          animation: rotation 1s 0s linear infinite;
+          /*animation: rotation 1s 0s linear infinite;*/
+      }
+
+      @keyframes rotation {
+          0% {
+              rotate: 0deg;
+          }
+          100% {
+              rotate: 360deg;
+          }
+      }
+
+      .wrapper {
+          position: relative;
+          right: 0;
+      }
+
+      .wrapper h1 {
+          color: #fff;
+          font-size: 2em;
+          position: absolute;
+          /*transform: translate(-50%, -50%);*/
+      }
+
+      .wrapper h1:nth-child(1) {
+          color: transparent;
+          -webkit-text-stroke: 2px #0cef86;
+      }
+
+      .wrapper h1:nth-child(2) {
+          color: #0cef86;
+          animation: animate 4s ease-in-out infinite;
+      }
+
+      @keyframes animate {
+          0%,
+          100% {
+              clip-path: polygon(
+                      0% 45%,
+                      16% 44%,
+                      33% 50%,
+                      54% 60%,
+                      70% 61%,
+                      84% 59%,
+                      100% 52%,
+                      100% 100%,
+                      0% 100%
+              );
+          }
+          50% {
+              clip-path: polygon(
+                      0% 60%,
+                      15% 65%,
+                      34% 66%,
+                      51% 62%,
+                      67% 50%,
+                      84% 45%,
+                      100% 46%,
+                      100% 100%,
+                      0% 100%
+              );
+          }
+      }
+  </style>
+</head>
+<body>
+<div id="container">
+  <canvas id="canvas"></canvas>
+  <div id="canvas-html">
+    <div id="hpage">
+        <div id="hcontent">
+        <div> hello</div>
+        <div> this is a canvas text!</div>
+        <div> multiline and scrolling</div>
+        <div> in webgl</div>
+        <div> really!</div>
+        <div> and this is a <b>very big line</b> that really flexes what we can do.</div>
+        <div> also something something <a href="https://threepipe.org" target="_blank">link can click.</a></div>
+        <div> Some fake forms:</div>
+        <div> <button id="btn1" style="scale:3; margin-left: 70px;">click me</button></div>
+        <div style="margin-top: 30px;"><i>no inputs yet, but here's css animations</i></div>
+        <div id="spinners" style="margin-top: 30px; display: flex; gap: 20px;">
+            spinner <span style="width: 40px"></span>
+            <div class="loader"></div>
+            <div class="loader"></div>
+            <div class="loader"></div>
+            <div class="loader"></div>
+            <div class="loader"></div>
+        </div>
+
+            <div class="wrapper">
+                <h1>Wavy text </h1>
+                <h1>Wavy text </h1>
+            </div>
+        <div style="margin-top:400px;"> and this is another <b>very big line</b> to show more scrolling.</div>
+        <div> and this is another <b>very big line</b> to show more scrolling.</div>
+        <div> and a link to <a href="https://google.com" target="_blank">google.com</a></div>
+        </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="src/main.ts"></script>
+</body>
+</html>

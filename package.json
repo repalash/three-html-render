@@ -1,0 +1,21 @@
+{
+  "name": "three-html-render",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build --base ./",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/three": "^0.164.1",
+    "dat.gui": "^0.7.9",
+    "three": "^0.164.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "ts-browser-helpers": "^0.12.0"
+  }
+}
