@@ -24,15 +24,9 @@ const THREE = {
     // UnrealBloomPass,
     LuminosityHighPassShader,
     CopyShader,
-    GUI,
 }
 
-window.common = {
-    THREE,
-
-}
-
-const sketch = ({ canvas, width, height }) => {
+export function sketch({ canvas }){
     const gui = new GUI({
         closeOnTop: true,
         closed: true,
@@ -104,9 +98,6 @@ const sketch = ({ canvas, width, height }) => {
     const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
     bgMesh.position.set(0, 0, -1);
     scene.add(bgMesh);
-
-    common.bgMesh = bgMesh;
-    common.camera = camera;
 
     const hdrEquirect = new THREE.RGBELoader().load(
         "https://hdrihaven.r2cache.com/hdr/2k/empty_warehouse_01_2k.hdr",
@@ -301,7 +292,6 @@ const sketch = ({ canvas, width, height }) => {
         update(clock.elapsedTime, 1/30);
         // renderer.render(scene, camera);
         composer.render();
-        requestAnimationFrame(render);
     }
     function unload() {
         mesh.geometry.dispose();
@@ -313,23 +303,8 @@ const sketch = ({ canvas, width, height }) => {
         gui.destroy();
         document.body.removeChild(stats.dom);
     }
-    render();
 
-    window.addEventListener('resize', () => {
-        resize({
-            canvas,
-            pixelRatio: window.devicePixelRatio,
-            viewportWidth: window.innerWidth,
-            viewportHeight: window.innerHeight,
-        });
-    });
-
-    resize({
-        canvas,
-        pixelRatio: window.devicePixelRatio,
-        viewportWidth: width,
-        viewportHeight: height,
-    });
-
+    return {
+        bgMesh, camera, resize, render, unload,
+    }
 };
-sketch({canvas: document.querySelector('canvas'), width: window.innerWidth, height: window.innerHeight})
