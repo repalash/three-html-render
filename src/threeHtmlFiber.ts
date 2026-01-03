@@ -75,7 +75,6 @@ export class ThreeHtmlFiber {
                 if (selection?.isCollapsed) div.style.opacity = '0'
                 else if (selection?.containsNode(div, true)) div.style.opacity = this.selectionOpacity.toString()
             })
-            console.log(selection)
         });
     }
 
@@ -140,7 +139,6 @@ export class ThreeHtmlFiber {
             mesh.getWorldQuaternion(object.quaternion)
             let sc = (object.element.clientWidth < this.extraBorder ? 0 : (object.element.clientWidth - this.extraBorder))
             const bounds = new Box3().expandByObject(mesh).getSize(new Vector3())
-            console.log(bounds)
             object.scale.set(bounds.x / sc, bounds.y / sc, 1 / sc)
         }
         this.css3DRenderer.render(this.scene, camera);

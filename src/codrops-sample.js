@@ -3,6 +3,7 @@ import * as THREE1 from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
@@ -17,6 +18,7 @@ const THREE = {
     OrbitControls,
     RoundedBoxGeometry,
     GLTFLoader,
+    DRACOLoader,
     RGBELoader,
     EffectComposer,
     RenderPass,
@@ -133,9 +135,31 @@ export function sketch({ canvas }){
 
     let mesh = null;
 
+    // Setup DRACO loader for compressed geometry
+    const dracoLoader = new THREE.DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+
+    const gltfLoader = new THREE.GLTFLoader();
+    gltfLoader.setDRACOLoader(dracoLoader);
+
     // Load dragon GLTF model
-    new THREE.GLTFLoader().load("dragon.glb", (gltf) => {
-        const dragon = gltf.scene.children.find((mesh) => mesh.name === "Dragon");
+    gltfLoader.load("dragon2.glb", (gltf) => {
+        // Try to find a mesh named "Dragon", or use the first mesh in the scene
+        let dragon = gltf.scene.children.find((child) => child.name === "Dragon");
+
+        if (!dragon) {
+            // If no mesh, traverse the entire scene graph
+            gltf.scene.traverse((child) => {
+                if (!dragon && child.type === "Mesh" && child.name === 'Dragon') {
+                    dragon = child;
+                }
+            });
+        }
+
+        if (!dragon || !dragon.geometry) {
+            console.error("No valid mesh found in GLTF file", gltf.scene);
+            return;
+        }
 
         // Just copy the geometry from the loaded model
         const geometry = dragon.geometry.clone();
@@ -150,9 +174,9 @@ export function sketch({ canvas }){
         scene.add(mesh);
 
         // Discard the loaded model
-        gltf.scene.children.forEach((child) => {
-            child.geometry.dispose();
-            child.material.dispose();
+        gltf.scene.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
         });
     });
 

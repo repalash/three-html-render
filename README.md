@@ -14,6 +14,14 @@ Render interactive HTML content onto 3D objects in Three.js with full CSS suppor
 - 📝 **Text Selection** - Select and copy text from 3D surfaces
 - ⚡ **Real-time Updates** - Dynamic content updates reflected on 3D objects
 
+## Integration
+
+This is an implementation for vanilla three.js projects. Check out the documented source code to see how it works and copy any relevant code.
+
+The functionality is already built into [threepipe](https://threepipe.org) and [kite3d](https://kite3d.dev) using plugins. Manual code integration is not required when using those frameworks.
+
+If you are using React Three Fiber or any other framework, it needs to be ported separately, check documentation of those frameworks for guidance.
+
 ## How It Works
 
 The library uses a combination of:
