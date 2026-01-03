@@ -15,6 +15,12 @@
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
   },
+  "author": "repalash <palash@shaders.app>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/repalash/three-html-render/issues"
+  },
+  "homepage": "https://github.com/repalash/three-html-render#readme",
   "dependencies": {
     "ts-browser-helpers": "^0.12.0"
   }

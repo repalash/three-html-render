@@ -1,9 +1,45 @@
 import {CanvasTexture} from 'three'
 import {createImage, css, htmlToSvg, svgUrl} from 'ts-browser-helpers'
 
+/**
+ * HtmlRenderer - Converts HTML elements to Three.js CanvasTextures.
+ *
+ * This class handles the conversion of HTML content to textures that can be
+ * applied to 3D meshes in Three.js. It works by:
+ * 1. Converting HTML to SVG using foreignObject
+ * 2. Rendering the SVG to an image
+ * 3. Drawing the image to a canvas
+ * 4. Creating a CanvasTexture from the canvas
+ *
+ * @example
+ * ```typescript
+ * const renderer = new HtmlRenderer();
+ * renderer.setPageStyles(cssStyles);
+ * const texture = await renderer.update(htmlElement);
+ * mesh.material.map = texture;
+ * ```
+ */
 export class HtmlRenderer{
+    /** CSS styles to include when rendering HTML to SVG */
     private pageStyles = ''
 
+    /**
+     * Updates or creates a texture from an HTML element.
+     *
+     * Converts the HTML element's content to an SVG, renders it to an image,
+     * and creates/updates a CanvasTexture. The texture is cached per element
+     * and reused when possible.
+     *
+     * @param node - The HTML element to render as a texture.
+     * @returns A promise that resolves to a CanvasTexture containing the rendered HTML.
+     *
+     * @example
+     * ```typescript
+     * const texture = await renderer.update(document.getElementById('content'));
+     * material.map = texture;
+     * material.needsUpdate = true;
+     * ```
+     */
     async update(node: HTMLElement){
         const rect = {width: node.clientWidth, height: node.clientHeight}
         const svg = this.h2s(rect, node)
@@ -19,19 +55,51 @@ export class HtmlRenderer{
         return canvasTexture
     }
 
-    setPageStyles(styles: string) { // todo accept in constructor? should also be async to load urls.
-        // todo embed url refs
+    /**
+     * Sets the CSS styles to be included when rendering HTML.
+     *
+     * These styles are injected into the SVG foreignObject to ensure
+     * consistent rendering. Should include all CSS rules needed for
+     * proper HTML appearance.
+     *
+     * @param styles - CSS string containing all necessary styles.
+     *
+     * @example
+     * ```typescript
+     * renderer.setPageStyles(`
+     *   body { font-family: Arial, sans-serif; }
+     *   .highlight { color: red; }
+     * `);
+     * ```
+     */
+    setPageStyles(styles: string) {
+        // TODO: Accept in constructor and support async loading for URL refs
+        // TODO: Embed URL references
         this.pageStyles = styles
     }
 
+    /** Internal canvas element used for rendering */
     canvas = document.createElement('canvas')
 
+    /** 2D rendering context for the canvas */
     context = this.canvas.getContext('2d')!;
 
+    /**
+     * Updates or creates a CanvasTexture from an image.
+     *
+     * Handles canvas resizing and texture recreation when dimensions change.
+     * Disposes of old textures when new ones are created.
+     *
+     * @param canvasTexture - Existing texture to update, or null to create new.
+     * @param rect - Dimensions for the texture (width and height).
+     * @param image - The rendered image to draw to the canvas.
+     * @returns The updated or newly created CanvasTexture.
+     *
+     * @internal
+     */
     updateTexture(canvasTexture: CanvasTexture | null, rect: { width: number; height: number }, image: HTMLImageElement) {
-        const scale = 1//window.devicePixelRatio
+        const scale = 1 // Could use window.devicePixelRatio for higher resolution
 
-        // console.log(rect.width, rect.height)
         const {canvas, context} = this
 
         if (!canvasTexture || canvas.width !== (rect.width * scale) || canvas.height !== (rect.height * scale)) {
@@ -41,29 +109,36 @@ export class HtmlRenderer{
             canvas.height = rect.height * scale
         }
 
-        // imgContainer.innerHTML = ''
-        // imgContainer.appendChild(image)
-
         context.clearRect(0, 0, canvas.width, canvas.height)
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
         canvasTexture.needsUpdate = true
-        // drawImage(image)
-        // console.log('time:', now() - time, 'ms')
 
         return canvasTexture
     }
 
-    // Recursively update scroll positions
+    /**
+     * Recursively updates CSS custom properties for scroll positions and animations.
+     *
+     * This method traverses the element tree and:
+     * - Sets `--scroll-left` and `--scroll-top` CSS variables for scrolled elements
+     * - Sets `--animation-delay` for elements with CSS animations to sync timing
+     *
+     * These custom properties are then used by the SVG-only styles to replicate
+     * scroll and animation states in the static SVG render.
+     *
+     * @param element - The root HTML element to process.
+     *
+     * @internal
+     */
     updateScrollPositions(element: HTMLElement) {
         const styles = getComputedStyle(element);
         const animations = element.getAnimations()
         if (element.scrollLeft !== 0 || element.scrollTop !== 0 || element.style.getPropertyValue('--scroll-left')) {
             element.style.setProperty('--scroll-left', -element.scrollLeft + 'px');
             element.style.setProperty('--scroll-top', -element.scrollTop + 6 + 'px');
-            // console.log(styles.transform)
         }
         if(animations.length > 1){
-            // console.error('not supported multiple animations', element, animations)
+            // Multiple animations on single element not yet supported
             return;
         }
         if(animations.length > 0){
@@ -76,6 +151,14 @@ export class HtmlRenderer{
         Array.from(element.children).forEach((a)=>(a as any).style && this.updateScrollPositions((a as any)));
     }
 
+    /**
+     * CSS styles applied only during SVG rendering.
+     *
+     * These styles use CSS custom properties set by updateScrollPositions()
+     * to replicate scroll offsets and animation timing in the static SVG output.
+     *
+     * @internal
+     */
     svgOnlyStyles = css`
 [style*="--scroll-left"], [style*="--scroll-top"] {
     overflow: hidden !important;
@@ -88,32 +171,38 @@ export class HtmlRenderer{
 }
 `
 
+    /**
+     * Converts an HTML element to an SVG string.
+     *
+     * Uses the foreignObject SVG element to embed HTML content.
+     * Processes scroll positions and animations before conversion.
+     *
+     * @param rect - Dimensions for the SVG viewport.
+     * @param node - The HTML element to convert.
+     * @returns SVG markup string containing the HTML content.
+     *
+     * @internal
+     */
     h2s(rect: { width: number; height: number }, node: HTMLElement) {
         let oHtml = node.innerHTML;
         this.updateScrollPositions(node)
-        // todo remove scripts
-        // oHtml = oHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 
-        // const template = document.createElement('div');
-        // template.innerHTML = oHtml;
-        // oHtml = template.innerHTML;
         const options = {
             width: rect.width,
             height: rect.height
         }
-        // console.log(rect)
         const style = this.pageStyles + '\n' + this.svgOnlyStyles;
-        // todo embedUrlRefs in html and css, for css it can be done once at the beginning
+        // TODO: Embed URL refs in HTML and CSS (for CSS it can be done once at initialization)
         const svg = htmlToSvg(oHtml, style, options, false)
             .replace('<svg viewBox', `<svg id="testSVGNODE" width="${rect.width}" height="${rect.height}" viewBox`)
 
-        // document.createElement('svg')
-        // console.log(svg)
-        // svgContainer.innerHTML = svg;
-        // const svgNode = document.getElementById('testSVGNODE')
         return svg
     }
 
+    /**
+     * Cache of textures keyed by their source HTML elements.
+     * Allows texture reuse and proper disposal management.
+     */
     textures = new Map<HTMLElement, CanvasTexture>()
 
 }

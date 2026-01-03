@@ -246,7 +246,7 @@ export function sketch({ canvas }){
     // ------
 
     const update = (time, deltaTime) => {
-        const ROTATE_TIME = 10; // Time in seconds for a full rotation
+        const ROTATE_TIME = 30; // Time in seconds for a full rotation
         const xAxis = new THREE.Vector3(1, 0, 0);
         const yAxis = new THREE.Vector3(0, 1, 0);
         const rotateX = (deltaTime / ROTATE_TIME) * Math.PI * 2;
