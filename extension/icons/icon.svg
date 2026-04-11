@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <!-- Scanline/pixel texture overlay -->
+    <pattern id="pixels" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="transparent"/>
+      <rect x="0" y="0" width="3.5" height="3.5" rx="0.5" fill="rgba(255,255,255,0.03)"/>
+    </pattern>
+    <!-- Inner glow for the text -->
+    <filter id="glow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Canvas border bevel -->
+    <filter id="bevel">
+      <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Canvas frame (outer border) -->
+  <rect x="4" y="4" width="120" height="120" rx="14" fill="#0d0d1a" filter="url(#bevel)"/>
+
+  <!-- Canvas surface -->
+  <rect x="8" y="8" width="112" height="112" rx="12" fill="#1a1a2e"/>
+
+  <!-- Pixel grid overlay -->
+  <rect x="8" y="8" width="112" height="112" rx="12" fill="url(#pixels)"/>
+
+  <!-- Subtle canvas grid -->
+  <line x1="8" y1="48" x2="120" y2="48" stroke="#2a2a4a" stroke-width="0.5" opacity="0.6"/>
+  <line x1="8" y1="88" x2="120" y2="88" stroke="#2a2a4a" stroke-width="0.5" opacity="0.6"/>
+  <line x1="48" y1="8" x2="48" y2="120" stroke="#2a2a4a" stroke-width="0.5" opacity="0.6"/>
+  <line x1="88" y1="8" x2="88" y2="120" stroke="#2a2a4a" stroke-width="0.5" opacity="0.6"/>
+
+  <!-- HTML angle brackets with glow (rendered "inside" the canvas) -->
+  <text x="64" y="80" font-family="monospace" font-size="54" font-weight="bold" fill="#e94560" text-anchor="middle" filter="url(#glow)">&lt;/&gt;</text>
+</svg>

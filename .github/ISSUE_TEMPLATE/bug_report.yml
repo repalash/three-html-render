@@ -1,0 +1,35 @@
+name: Bug Report
+description: Report a bug
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps or code to reproduce the issue
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: "e.g. Chrome 124, Firefox 125, Chrome Canary with --enable-experimental-web-platform-features"
+    validations:
+      required: true
+  - type: input
+    id: three-version
+    attributes:
+      label: Three.js Version
+      placeholder: "e.g. 0.164.1"
+  - type: input
+    id: lib-version
+    attributes:
+      label: three-html-render Version
+      placeholder: "e.g. 0.1.0"

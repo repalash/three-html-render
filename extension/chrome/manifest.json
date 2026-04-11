@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "HTML-in-Canvas Polyfill",
+  "version": "0.1.0",
+  "description": "Polyfills the HTML-in-Canvas API for rendering live HTML as WebGL/WebGPU canvas textures",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["polyfill.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    }
+  ]
+}

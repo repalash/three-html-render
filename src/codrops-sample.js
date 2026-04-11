@@ -323,12 +323,10 @@ export function sketch({ canvas }){
         hdrEquirect.dispose();
         controls.dispose();
         renderer.dispose();
-        // bloomPass.dispose();
         gui.destroy();
-        document.body.removeChild(stats.dom);
     }
 
     return {
-        bgMesh, camera, resize, render, unload,
+        bgMesh, camera, resize, render, unload, renderer, scene,
     }
 };

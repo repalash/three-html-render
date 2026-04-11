@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jelly slider</title>
+  <!-- html-in-canvas polyfill: installs `onpaint`, `requestPaint`,
+       `drawElementImage`, `texElementImage2D`, `getElementTransform`,
+       and the WebGPU `copyElementImageToTexture` patch. Must import
+       and install BEFORE the jelly-slider main bundle runs, so the
+       bundle sees patched prototypes when it grabs `canvas.onpaint`
+       and `device.queue.copyElementImageToTexture`. -->
+  <script type="module">
+    import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
+    installHtmlInCanvasPolyfill();
+  </script>
+  <script>
+    if (!navigator.gpu) {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('gpu-unsupported').style.display = 'flex';
+      });
+    }
+  </script>
+  <link rel="modulepreload" crossorigin href="/examples/webgpu-jelly-slider/assets/index-B_Lwju-g.js">
+</head>
+<body>
+<div id="gpu-unsupported" style="display:none;position:fixed;inset:0;z-index:9999;flex-direction:column;align-items:center;justify-content:center;background:#1a1a1a;color:#fff;font-family:sans-serif;text-align:center;padding:2rem;">
+  <h2 style="margin:0 0 0.5rem;font-size:1.5rem;">WebGPU is not enabled in this browser</h2>
+  <p style="margin:0 0 1rem;color:#aaa;">It may be available behind an experimental flag.</p>
+  <a href="https://docs.swmansion.com/TypeGPU/blog/troubleshooting/" target="_blank" style="color:#ff7313;text-decoration:none;font-weight:600;">How to enable WebGPU &rarr;</a>
+</div>
+<style>
+  :root {
+    color-scheme: light dark;
+  }
+  #slider {
+    cursor: grab;
+    width: 75%;
+    height: 12.5%;
+    opacity: 0;
+
+    --jelly-color: rgb(255, 115, 19);
+    --ground-color: rgb(255, 255, 255);
+    --text-color: rgb(40, 40, 40);
+
+    color: var(--jelly-color);
+    background-color: var(--ground-color);
+    caret-color: var(--text-color);
+  }
+  #slider:focus {
+    --jelly-color: rgb(51, 153, 255);
+  }
+  @media (prefers-color-scheme: dark) {
+    #slider {
+      --ground-color: rgb(26, 26, 26);
+      --text-color: rgb(204, 204, 204);
+    }
+  }
+  @media (prefers-contrast: more) {
+    #slider {
+      --jelly-color: rgb(255, 51, 0);
+      --text-color: rgb(0, 0, 0);
+    }
+    #slider:focus {
+      --jelly-color: rgb(0, 0, 255);
+    }
+    @media (prefers-color-scheme: dark) {
+      #slider {
+        --text-color: rgb(255, 255, 255);
+      }
+    }
+  }
+  @media (forced-colors: active) {
+    #slider {
+      --jelly-color: transparent;
+      --ground-color: Canvas;
+      --text-color: CanvasText;
+    }
+    #slider:focus {
+      --jelly-color: Highlight;
+    }
+  }
+  #value {
+    text-align: right;
+    height: 12.5%;
+    width: 75%;
+    color: white;
+    font-size: 5vmin;
+    line-height: 10vmin;
+    font-family: sans-serif;
+  }
+</style>
+
+<canvas layoutsubtree>
+  <input id="slider" type="range" min="0" max="100" step="1" value="100" />
+  <div id="value" inert="true"></div>
+</canvas>
+<div id="attribution">
+  This is based on Software Mansion's <a href="https://github.com/software-mansion/TypeGPU/tree/main/apps/typegpu-docs/src/examples/rendering/jelly-slider" target="_blank">Jelly Slider</a>, which was inspired by the work of <a href="https://x.com/cerpow/status/1964953851603358112" target="_blank">Voicu Apostol</a>.
+</div>
+
+<script type="module" crossorigin src="/examples/webgpu-jelly-slider/assets/index-DS4jjhzL.js"></script>
+</body>
+</html>

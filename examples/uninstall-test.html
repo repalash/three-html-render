@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Polyfill uninstall smoke test</title>
+
+<canvas id="canvas" width="200" height="100" layoutsubtree="true">
+  <div id="target" style="width: 150px;">hello</div>
+</canvas>
+
+<script type="module">
+  import {
+    installHtmlInCanvasPolyfill,
+    uninstallHtmlInCanvasPolyfill,
+  } from '/src/htmlInCanvasPolyfill.ts';
+
+  const canvas = document.getElementById('canvas');
+
+  function snapshot(label) {
+    return {
+      label,
+      canvasChildrenLen: canvas.children.length,
+      hostExists: !!document.querySelector('[data-html-in-canvas-host]'),
+      drawElementImageExists: 'drawElementImage' in CanvasRenderingContext2D.prototype,
+      layoutSubtreeOnProto: 'layoutSubtree' in HTMLCanvasElement.prototype,
+      onpaintOnProto: Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'onpaint') != null,
+      requestPaintOnProto: 'requestPaint' in HTMLCanvasElement.prototype,
+    };
+  }
+
+  const pre = snapshot('pre-install');
+
+  installHtmlInCanvasPolyfill();
+  const afterInstall = snapshot('after-install');
+
+  uninstallHtmlInCanvasPolyfill();
+  const afterUninstall = snapshot('after-uninstall');
+
+  installHtmlInCanvasPolyfill();
+  const afterReinstall = snapshot('after-reinstall');
+
+  window.__uninstallTest = {pre, afterInstall, afterUninstall, afterReinstall};
+  window.__uninstallTestReady = true;
+</script>

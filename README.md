@@ -1,172 +1,266 @@
-# Three.js HTML Render
+# three-html-render
 
-Render interactive HTML content onto 3D objects in Three.js with full CSS support, animations, and user interactions.
+Polyfill for the [WICG HTML-in-Canvas](https://github.com/WICG/html-in-canvas) proposal. Render live, interactive HTML as WebGL/WebGPU textures — works in all browsers today.
 
-[![Demo](https://img.shields.io/badge/Three.js-HTML%20to%20Texture-blue)](https://github.com/user/three-html-render)
-[![GitHub Pages](https://img.shields.io/badge/demo-live-green)](https://user.github.io/three-html-render/)
+[![npm version](https://img.shields.io/npm/v/three-html-render)](https://www.npmjs.com/package/three-html-render)
+[![bundle size](https://img.shields.io/badge/minzipped-9.5kB-blue)](https://bundlephobia.com/package/three-html-render)
+[![license](https://img.shields.io/github/license/repalash/three-html-render)](./LICENSE)
+
+[![Part of threepipe](https://img.shields.io/badge/part%20of-threepipe-blue)](https://github.com/repalash/threepipe)
+[![Part of kite3d](https://img.shields.io/badge/part%20of-kite3d-blue)](https://kite3d.dev)
 
 ## Features
 
-- 🎨 **HTML to Texture** - Render any HTML/CSS content as a texture on 3D meshes
-- 🎬 **CSS Animations** - Full support for CSS animations and keyframes
-- 📜 **Scrolling Support** - Handle scrollable content within textures
-- 🖱️ **Interactive Elements** - Clickable buttons, links, and other HTML elements
-- 📝 **Text Selection** - Select and copy text from 3D surfaces
-- ⚡ **Real-time Updates** - Dynamic content updates reflected on 3D objects
+- **HTML-in-Canvas polyfill** — brings the spec to all browsers (Safari, Firefox, iOS, Android), not just Chrome Canary
+- **CSS pseudo-classes** — `:hover`, `:focus`, `:active`, `:focus-visible`, `:focus-within` render correctly on 3D surfaces
+- **CSS animations** — spinners, transitions, keyframes render live
+- **Scrolling** — scrollable HTML content inside textures
+- **Interaction** — click buttons, type in inputs, follow links, select text on 3D meshes
+- **Caret & text selection** — input/textarea caret and selection highlighting rendered in the texture
+- **Page-level text selection** — select text across HTML elements, highlight rendered in texture
+- **Native fast-path** — uses `texElementImage2D` when available (Chrome Canary), falls back to SVG foreignObject polyfill
+- **Three.js integration** — automatic texture upload, DOM overlay positioning, material assignment
+- **Latest Three.js support** — auto-detects `HTMLTexture` class when available
+- **Browser extension** — Chrome & Safari extensions to polyfill any page
 
-## Integration
+## Examples
 
-This is an implementation for vanilla three.js projects. Check out the documented source code to see how it works and copy any relevant code.
+| Example                                                 | Demo                                                                                   | Description                                                           |
+|---------------------------------------------------------|----------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| [index.html](index.html)                                | [Live](https://repalash.com/three-html-render/)                                        | Dragon model with scrollable HTML, hover effects, forms, theme toggle |
+| [text-input](examples/text-input.html)                  | [Live](https://repalash.com/three-html-render/examples/text-input.html)                | Interactive form with caret & selection                               |
+| [webGL-text-input](examples/webGL-text-input.html)      | [Live](https://repalash.com/three-html-render/examples/webGL-text-input.html)          | Multi-face cube with interactive forms                                |
+| [webGL](examples/webGL.html)                            | [Live](https://repalash.com/three-html-render/examples/webGL.html)                     | Basic WebGL texture from HTML                                         |
+| [complex-text](examples/complex-text.html)              | [Live](https://repalash.com/three-html-render/examples/complex-text.html)              | Rich text rendering                                                   |
+| [pie-chart](examples/pie-chart.html)                    | [Live](https://repalash.com/three-html-render/examples/pie-chart.html)                 | SVG/HTML chart on 3D surface                                          |
+| [jelly-slider](examples/webgpu-jelly-slider/index.html) | [Live](https://repalash.com/three-html-render/examples/webgpu-jelly-slider/index.html) | WebGPU slider with `copyElementImageToTexture` (requires WebGPU)      |
 
-The functionality is already built into [threepipe](https://threepipe.org) and [kite3d](https://kite3d.dev) using plugins. Manual code integration is not required when using those frameworks.
+## Install
 
-If you are using React Three Fiber or any other framework, it needs to be ported separately, check documentation of those frameworks for guidance.
+### Polyfill
 
-## How It Works
+Add to page and use the html-in-canvas API normally
 
-The library uses a combination of:
+```html
+<script src="https://cdn.jsdelivr.net/npm/three-html-render/dist/polyfill.js"></script>
+```
 
-1. **CSS3DRenderer** - Positions invisible HTML overlays aligned with 3D meshes for interaction
-2. **HTML to SVG Conversion** - Converts HTML content to SVG using `foreignObject`
-3. **Canvas Texture** - Renders the SVG to a canvas and creates a Three.js texture
-
-This approach allows for:
-- True CSS styling and animations
-- Interactive HTML elements (buttons, links, forms)
-- Text selection on 3D surfaces
-- Scrollable content areas
-
-## Installation
+### NPM
 
 ```bash
-npm install
+npm install three-html-render
 ```
 
 ## Usage
 
-### Development
+How to render HTML inside canvas - 2d, webgl, webgpu context
 
-```bash
-npm run dev
+### Polyfill only (no Three.js)
+
+Now any `<canvas layoutsubtree>` element supports the full API:
+
+```html
+<canvas id="c" layoutsubtree>
+  <div id="content" style="width:400px;height:300px">
+    <h1>Hello from HTML</h1>
+    <button>Click me</button>
+  </div>
+</canvas>
+<script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three-html-render/polyfill": "https://cdn.jsdelivr.net/npm/three-html-render/dist/polyfill.mjs"
+    }}
+</script>
+<script type="module">
+  import { installHtmlInCanvasPolyfill } from 'three-html-render/polyfill'
+  installHtmlInCanvasPolyfill()
+
+  const canvas = document.getElementById('c')
+  const content = document.getElementById('content')
+  const ctx = canvas.getContext('2d')
+
+  canvas.onpaint = () => {
+    ctx.drawElementImage(content, 0, 0)
+  }
+  canvas.requestPaint()
+</script>
 ```
 
-### Build
+### With Three.js
 
-```bash
-npm run build
-```
+```html
+<canvas id="canvas" layoutsubtree>
+  <div id="htmlContent" style="width:512px;height:512px;padding:20px;background:white;font-size:24px;">
+    <h1>Hello from HTML</h1>
+    <button onclick="this.textContent='Clicked!'">Click me</button>
+    <input type="text" value="Type here" style="font-size:20px;padding:4px;">
+  </div>
+</canvas>
 
-### Preview Production Build
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three-html-render/polyfill": "https://cdn.jsdelivr.net/npm/three-html-render/dist/polyfill.mjs",
+    "three-html-render/renderer": "https://cdn.jsdelivr.net/npm/three-html-render/dist/renderer.js"
+}}
+</script>
+<script type="module">
+  import * as THREE from 'three'
+  import { installHtmlInCanvasPolyfill } from 'three-html-render/polyfill'
+  import { ThreeHTMLRenderer } from 'three-html-render/renderer'
 
-```bash
-npm run preview
-```
+  installHtmlInCanvasPolyfill()
 
-## Quick Start
+  const canvas = document.getElementById('canvas')
+  const scene = new THREE.Scene()
+  const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 100)
+  camera.position.z = 2
+  const threeRenderer = new THREE.WebGLRenderer({ canvas })
+  threeRenderer.setSize(innerWidth, innerHeight)
 
-```javascript
-import { ThreeHtmlFiber } from './src/threeHtmlFiber.ts'
+  const geometry = new THREE.PlaneGeometry(2, 2)
+  const material = new THREE.MeshBasicMaterial()
+  const mesh = new THREE.Mesh(geometry, material)
+  scene.add(mesh)
 
-// Create the HTML renderer attached to a container
-const threeHtmlFiber = new ThreeHtmlFiber(document.getElementById('container'))
+  const htmlRenderer = new ThreeHTMLRenderer()
+  htmlRenderer.connect(canvas, camera, threeRenderer)
+  htmlRenderer.addObject(document.getElementById('htmlContent'), mesh)
 
-// Optionally set page styles for consistent rendering
-threeHtmlFiber.htmlRenderer.setPageStyles(yourCSSStyles)
-
-// Add an object to render HTML onto
-const cssObject = threeHtmlFiber.addObject(yourThreeMesh)
-cssObject.element.innerHTML = '<div>Your HTML content here</div>'
-cssObject.element.style.width = '1024px'
-
-// In your animation loop
-function animate() {
+  function animate() {
     requestAnimationFrame(animate)
-    threeHtmlFiber.animate(camera)
-    // ... rest of your render logic
-}
+    htmlRenderer.update()
+    threeRenderer.render(scene, camera)
+  }
+  animate()
+</script>
 ```
+
+The HTML element should be a child of a `<canvas layoutsubtree>`. The renderer handles texture upload, DOM overlay positioning, event propagation, and material assignment automatically. Works with Three.js >= 0.150.0.
+
+## What Gets Polyfilled
+
+The polyfill implements the full [WICG HTML-in-Canvas](https://github.com/WICG/html-in-canvas) API surface:
+
+| API                                           | Target                     | Description                                                                                                                    |
+|-----------------------------------------------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `layoutsubtree`                               | `HTMLCanvasElement`        | Attribute that opts canvas children into layout                                                                                |
+| `onpaint`                                     | `HTMLCanvasElement`        | Event fired when children need re-rendering                                                                                    |
+| `requestPaint()`                              | `HTMLCanvasElement`        | Request a paint event on the next frame                                                                                        |
+| `captureElementImage()`                       | `HTMLCanvasElement`        | Capture a child element's rendered snapshot                                                                                    |
+| `getElementTransform(element, drawTransform)` | `HTMLCanvasElement`        | Get CSS transform to align DOM overlay with drawn position. `drawTransform` is the `DOMMatrix` returned by `drawElementImage`. |
+| `drawElementImage()`                          | `CanvasRenderingContext2D` | Draw a child element onto the 2D canvas. Returns a `DOMMatrix`.                                                                |
+| `texElementImage2D()`                         | `WebGLRenderingContext`    | Upload a child element as a WebGL texture                                                                                      |
+| `copyElementImageToTexture()`                 | `GPUQueue`                 | Upload a child element as a WebGPU texture                                                                                     |
 
 ## API
 
-### ThreeHtmlFiber
+### `installHtmlInCanvasPolyfill(options?)`
 
-Main class for managing HTML rendering on 3D objects.
+Installs the polyfill on all `<canvas layoutsubtree>` elements.
 
-#### Constructor
-```javascript
-new ThreeHtmlFiber(parentElement: HTMLElement)
+| Option       | Type      | Default | Description                                                                                |
+|--------------|-----------|---------|--------------------------------------------------------------------------------------------|
+| `force`      | `boolean` | `false` | Install even if native API is available. Also activates when `?polyfillHIC` is in the URL. |
+| `pageStyles` | `string`  | —       | Additional CSS to include in renders                                                       |
+
+### `uninstallHtmlInCanvasPolyfill()`
+
+Cleanly removes the polyfill, restoring all patched prototypes and tearing down canvas states.
+
+### `getHtmlRenderer()`
+
+Returns the internal `HtmlRenderer` instance used by the polyfill. Useful for advanced operations like invalidating cached styles:
+
+```js
+import { getHtmlRenderer } from 'three-html-render/polyfill'
+getHtmlRenderer().invalidatePageStylesCss()
 ```
+
+### `ThreeHTMLRenderer`
+
+Connects HTML elements to Three.js meshes for texture rendering and DOM overlay interaction.
 
 #### Methods
 
-| Method | Description |
-|--------|-------------|
-| `addObject(mesh, cssObject?)` | Attach HTML content to a Three.js mesh. Returns a `CSS3DObject`. |
-| `render(camera)` | Manually trigger a render update (async). |
-| `animate(camera)` | Queue-based render update for animation loops. |
+| Method                              | Description                                                           |
+|-------------------------------------|-----------------------------------------------------------------------|
+| `connect(canvas, camera, renderer)` | Bind to a Three.js canvas, camera, and WebGL renderer                 |
+| `addObject(element, mesh)`          | Register an HTML element to render onto a mesh                        |
+| `update()`                          | Call every frame — positions DOM overlay and triggers texture updates |
+| `getTexture(element)`               | Get the Three.js `Texture` for a given element                        |
 
 #### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `selectionOpacity` | `number` | Opacity of the overlay when text is selected (default: 0.1) |
-| `extraBorder` | `number` | Border adjustment for texture sizing (default: 1.5) |
+| Property           | Type                  | Default | Description                               |
+|--------------------|-----------------------|---------|-------------------------------------------|
+| `selectionOpacity` | `number`              | `0`     | DOM overlay opacity when text is selected |
+| `overlayRenderer`  | `HtmlOverlayRenderer` | —       | The underlying overlay positioning engine |
 
-### HtmlRenderer
+### Texture Upload Strategy
 
-Handles the HTML-to-texture conversion.
+`ThreeHTMLRenderer` automatically picks the best upload path:
 
-#### Methods
+1. **Latest Three.js** (`HTMLTexture` available) — renderer handles everything
+2. **Native Canary** (`texElementImage2D` on GL context) — direct GL upload
+3. **Polyfill** — `captureElementImage` → canvas → `texture.image`
 
-| Method | Description |
-|--------|-------------|
-| `update(node)` | Convert an HTML element to a `CanvasTexture`. |
-| `setPageStyles(css)` | Set CSS styles to be included in the render. |
+## How It Works
 
-## Demo
+1. The polyfill moves `<canvas>` children into an offscreen host div, rasterizes them via SVG foreignObject → `<img>` → canvas
+2. CSS pseudo-classes (`:hover`, `:focus`, `:active`, etc.) are rewritten to real CSS classes (`.pseudo-hover`, `.pseudo-focus`, `.pseudo-active`) and injected into the SVG stylesheet. Mouse/focus/pointer events toggle these classes on the host overlay.
+3. Input caret and text selection are measured from the live DOM and injected as positioned `<div>` elements into the SVG clone
+4. `onpaint` / `requestPaint` API lets consumers control when rasterization happens
+5. `ThreeHTMLRenderer` positions a transparent DOM overlay (using `matrix3d` math) so the browser handles hit-testing natively
+6. Texture is uploaded to WebGL/WebGPU each frame via the best available path
 
-The included demo showcases:
-
-- A glass-like dragon model with HTML content behind it
-- Animated CSS spinners
-- Wavy text animations
-- Scrollable content
-- Clickable buttons and links
-
-### Demo Screenshot Features
-
-- Gradient background with HTML content
-- Multiple CSS animation examples (spinners, wavy text)
-- Interactive button that tracks clicks
-- Scrollable HTML area
-- External links that open in new tabs
-
-## Dependencies
-
-- [Three.js](https://threejs.org/) - 3D rendering library
-- [ts-browser-helpers](https://www.npmjs.com/package/ts-browser-helpers) - HTML to SVG conversion utilities
-- [dat.gui](https://github.com/dataarts/dat.gui) - Debug GUI for the demo
-- [Vite](https://vitejs.dev/) - Build tool and dev server
+Run `npm run dev` to start the dev server locally.
 
 ## Browser Support
 
-Works in all modern browsers that support:
-- WebGL
-- CSS3DRenderer
-- SVG foreignObject
-- Canvas 2D
+| Browser                | Support           | Method                                                |
+|------------------------|-------------------|-------------------------------------------------------|
+| Chrome, Edge           | Full              | Polyfill (SVG foreignObject)                          |
+| Safari, iOS Safari     | Full              | Polyfill                                              |
+| Firefox                | Full              | Polyfill                                              |
+| Android Chrome/WebView | Full              | Polyfill                                              |
+| Chrome Canary          | Native + Polyfill | Native via `chrome://flags/#canvas-draw-element` flag |
 
-## Limitations
+The HTML-in-Canvas API is a [WICG proposal](https://github.com/WICG/html-in-canvas) currently in developer trial in Chrome Canary, with an origin trial planned for Chrome M148-M151. The polyfill ensures your code works today and will automatically use the native fast-path when browsers ship support.
 
-- Input elements (text fields, etc.) are not yet fully supported
-- Complex CSS features may not render correctly in SVG foreignObject
-- Performance depends on HTML complexity and update frequency
-- External resources in HTML must be properly handled (CORS)
+## Known Limitations
+
+- Textarea internal scroll is not reflected in the texture (content renders at scroll position 0)
+- `contenteditable` elements don't support caret/selection rendering
+- Dynamic stylesheets added after polyfill installation need `getHtmlRenderer().invalidatePageStylesCss()` to pick up new pseudo-class rules
+- `:visited` pseudo-class cannot be polyfilled (browser privacy restriction)
+- Some CSS features may render differently in SVG foreignObject context (e.g., form control appearance, `color-scheme`)
+
+## Integration
+
+This library works with vanilla Three.js (>= 0.150.0). The functionality is also built into [threepipe](https://threepipe.org) ([GitHub](https://github.com/repalash/threepipe)) and [kite3d](https://kite3d.dev) as plugins — manual code integration is not required when using those frameworks.
+
+If you are using React Three Fiber or another Three.js framework, refer to their documentation for integration guidance.
+
+## Browser Extension
+
+Chrome and Safari extensions are included to polyfill any page. See [extension/README.md](./extension/README.md) for build and installation instructions.
+
+## Development
+
+```bash
+npm run dev              # Start Vite dev server
+npm run build            # Build library (ESM + CJS + .d.ts)
+npm run build:demo       # Build demo site (for GitHub Pages)
+npm run build:extension  # Build browser extension
+npm run typecheck        # Run TypeScript type checking
+```
 
 ## License
 
-MIT
+[MIT](./LICENSE)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.

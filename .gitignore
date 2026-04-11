@@ -9,7 +9,11 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-demo
 dist-ssr
+extension/polyfill.js
+extension/chrome/polyfill.js
+extension/safari/polyfill.js
 *.local
 
 # Editor directories and files
@@ -22,3 +26,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+compose.dev.yaml
+.aibox
+.idea/workspace.xml
+
+# Development artifacts
+.archive/
+*.png
+scripts/
+html-in-canvas/

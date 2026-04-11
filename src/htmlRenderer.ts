@@ -1,217 +1,616 @@
-import {CanvasTexture} from 'three'
-import {createImage, css, htmlToSvg, svgUrl} from 'ts-browser-helpers'
+import {createImage, css, embedUrlRefs} from 'ts-browser-helpers'
+import {syncFormState} from './syncFormState'
 
-/**
- * HtmlRenderer - Converts HTML elements to Three.js CanvasTextures.
- *
- * This class handles the conversion of HTML content to textures that can be
- * applied to 3D meshes in Three.js. It works by:
- * 1. Converting HTML to SVG using foreignObject
- * 2. Rendering the SVG to an image
- * 3. Drawing the image to a canvas
- * 4. Creating a CanvasTexture from the canvas
- *
- * @example
- * ```typescript
- * const renderer = new HtmlRenderer();
- * renderer.setPageStyles(cssStyles);
- * const texture = await renderer.update(htmlElement);
- * mesh.material.map = texture;
- * ```
- */
-export class HtmlRenderer{
-    /** CSS styles to include when rendering HTML to SVG */
+export class HtmlRenderer {
+    pixelRatio = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
+
     private pageStyles = ''
+    private entries = new Map<HTMLElement, RendererEntry>()
+    private pageStylesCssPromise: Promise<string> | null = null
 
-    /**
-     * Updates or creates a texture from an HTML element.
-     *
-     * Converts the HTML element's content to an SVG, renders it to an image,
-     * and creates/updates a CanvasTexture. The texture is cached per element
-     * and reused when possible.
-     *
-     * @param node - The HTML element to render as a texture.
-     * @returns A promise that resolves to a CanvasTexture containing the rendered HTML.
-     *
-     * @example
-     * ```typescript
-     * const texture = await renderer.update(document.getElementById('content'));
-     * material.map = texture;
-     * material.needsUpdate = true;
-     * ```
-     */
-    async update(node: HTMLElement){
-        const rect = {width: node.clientWidth, height: node.clientHeight}
-        const svg = this.h2s(rect, node)
-        const image = await createImage(svgUrl(svg))
-        image.width = rect.width
-        image.height = rect.height
-        const canvasTexture = this.updateTexture(this.textures.get(node) || null, rect, image)
-        canvasTexture.addEventListener('dispose', ()=>{
-            const exists = this.textures.get(node) === canvasTexture
-            if(exists) this.textures.delete(node)
-        })
-        this.textures.set(node, canvasTexture)
-        return canvasTexture
+    async update(node: HTMLElement): Promise<HTMLCanvasElement> {
+        const cssW = node.clientWidth || node.offsetWidth
+        const cssH = node.clientHeight || node.offsetHeight
+        if (cssW === 0 || cssH === 0) {
+            const existing = this.entries.get(node)
+            if (existing) return existing.canvas
+            return this.ensureEntry(node, 1, 1).canvas
+        }
+
+        const entry = this.ensureEntry(node, cssW, cssH)
+        const dpr = Math.max(1, this.pixelRatio)
+        const pxW = entry.canvas.width
+        const pxH = entry.canvas.height
+        const svg = await this.buildSvg(node, cssW, cssH, dpr)
+        const image = await loadSvgAsImage(svg, pxW, pxH)
+
+        entry.context.clearRect(0, 0, pxW, pxH)
+        entry.context.drawImage(image, 0, 0, pxW, pxH)
+        return entry.canvas
     }
 
-    /**
-     * Sets the CSS styles to be included when rendering HTML.
-     *
-     * These styles are injected into the SVG foreignObject to ensure
-     * consistent rendering. Should include all CSS rules needed for
-     * proper HTML appearance.
-     *
-     * @param styles - CSS string containing all necessary styles.
-     *
-     * @example
-     * ```typescript
-     * renderer.setPageStyles(`
-     *   body { font-family: Arial, sans-serif; }
-     *   .highlight { color: red; }
-     * `);
-     * ```
-     */
+    getCanvas(node: HTMLElement): HTMLCanvasElement | null {
+        return this.entries.get(node)?.canvas ?? null
+    }
+
+    getCssSize(node: HTMLElement): { width: number; height: number } | null {
+        const e = this.entries.get(node)
+        return e ? {width: e.cssW, height: e.cssH} : null
+    }
+
     setPageStyles(styles: string) {
-        // TODO: Accept in constructor and support async loading for URL refs
-        // TODO: Embed URL references
         this.pageStyles = styles
     }
 
-    /** Internal canvas element used for rendering */
-    canvas = document.createElement('canvas')
-
-    /** 2D rendering context for the canvas */
-    context = this.canvas.getContext('2d')!;
-
-    /**
-     * Updates or creates a CanvasTexture from an image.
-     *
-     * Handles canvas resizing and texture recreation when dimensions change.
-     * Disposes of old textures when new ones are created.
-     *
-     * @param canvasTexture - Existing texture to update, or null to create new.
-     * @param rect - Dimensions for the texture (width and height).
-     * @param image - The rendered image to draw to the canvas.
-     * @returns The updated or newly created CanvasTexture.
-     *
-     * @internal
-     */
-    updateTexture(canvasTexture: CanvasTexture | null, rect: { width: number; height: number }, image: HTMLImageElement) {
-        const scale = 1 // Could use window.devicePixelRatio for higher resolution
-
-        const {canvas, context} = this
-
-        if (!canvasTexture || canvas.width !== (rect.width * scale) || canvas.height !== (rect.height * scale)) {
-            canvasTexture?.dispose()
-            canvasTexture = new CanvasTexture(canvas)
-            canvas.width = rect.width * scale
-            canvas.height = rect.height * scale
+    async getPageStylesCss(): Promise<string> {
+        if (!this.pageStylesCssPromise) {
+            const promise = collectAndInlinePageStyles()
+            this.pageStylesCssPromise = promise
+            promise.catch(() => {
+                if (this.pageStylesCssPromise === promise) {
+                    this.pageStylesCssPromise = null
+                }
+            })
         }
-
-        context.clearRect(0, 0, canvas.width, canvas.height)
-        context.drawImage(image, 0, 0, canvas.width, canvas.height)
-        canvasTexture.needsUpdate = true
-
-        return canvasTexture
+        return this.pageStylesCssPromise
     }
 
-    /**
-     * Recursively updates CSS custom properties for scroll positions and animations.
-     *
-     * This method traverses the element tree and:
-     * - Sets `--scroll-left` and `--scroll-top` CSS variables for scrolled elements
-     * - Sets `--animation-delay` for elements with CSS animations to sync timing
-     *
-     * These custom properties are then used by the SVG-only styles to replicate
-     * scroll and animation states in the static SVG render.
-     *
-     * @param element - The root HTML element to process.
-     *
-     * @internal
-     */
-    updateScrollPositions(element: HTMLElement) {
-        const styles = getComputedStyle(element);
-        const animations = element.getAnimations()
-        if (element.scrollLeft !== 0 || element.scrollTop !== 0 || element.style.getPropertyValue('--scroll-left')) {
-            element.style.setProperty('--scroll-left', -element.scrollLeft + 'px');
-            element.style.setProperty('--scroll-top', -element.scrollTop + 6 + 'px');
-        }
-        if(animations.length > 1){
-            // Multiple animations on single element not yet supported
-            return;
-        }
-        if(animations.length > 0){
-            const anim = animations[0]
-            const time = parseInt(anim.currentTime?.toString() ?? '0') / 1000
-            const currentDelay = styles.animationDelay.replace('s', '')||'0'
-            const delay = -parseInt(currentDelay) + time
-            element.style.setProperty('--animation-delay', -delay + 's');
-        }
-        Array.from(element.children).forEach((a)=>(a as any).style && this.updateScrollPositions((a as any)));
+    invalidatePageStylesCss() {
+        this.pageStylesCssPromise = null
     }
 
-    /**
-     * CSS styles applied only during SVG rendering.
-     *
-     * These styles use CSS custom properties set by updateScrollPositions()
-     * to replicate scroll offsets and animation timing in the static SVG output.
-     *
-     * @internal
-     */
-    svgOnlyStyles = css`
+    cleanup() {
+        if (mirrorDiv) {
+            mirrorDiv.remove()
+            mirrorDiv = null
+        }
+    }
+
+    captureDynamicStateOnClone(src: HTMLElement, dst: HTMLElement) {
+        const srcAll = [src, ...src.querySelectorAll<HTMLElement>('*')]
+        const dstAll = [dst, ...dst.querySelectorAll<HTMLElement>('*')]
+        if (srcAll.length !== dstAll.length) return
+        for (let i = 0; i < srcAll.length; i++) {
+            writeDynamicStateInline(srcAll[i], dstAll[i])
+        }
+        injectCaretAndSelection(src, dst)
+        injectPageSelection(src, dst)
+    }
+
+    readonly svgOnlyStyles = css`
 [style*="--scroll-left"], [style*="--scroll-top"] {
     overflow: hidden !important;
 }
 [style*="--animation-delay"] {
     animation-delay: var(--animation-delay, 0s) !important;
 }
-[style*="--scroll-left"] > * , [style*="--scroll-top"] > * {
+[style*="--scroll-left"] > *, [style*="--scroll-top"] > * {
     transform: translate(var(--scroll-left, 0), var(--scroll-top, 0));
 }
 `
 
-    /**
-     * Converts an HTML element to an SVG string.
-     *
-     * Uses the foreignObject SVG element to embed HTML content.
-     * Processes scroll positions and animations before conversion.
-     *
-     * @param rect - Dimensions for the SVG viewport.
-     * @param node - The HTML element to convert.
-     * @returns SVG markup string containing the HTML content.
-     *
-     * @internal
-     */
-    h2s(rect: { width: number; height: number }, node: HTMLElement) {
-        let oHtml = node.innerHTML;
-        this.updateScrollPositions(node)
-
-        const options = {
-            width: rect.width,
-            height: rect.height
+    private ensureEntry(node: HTMLElement, cssW: number, cssH: number): RendererEntry {
+        const dpr = Math.max(1, this.pixelRatio)
+        const width = Math.max(1, Math.ceil(cssW * dpr))
+        const height = Math.max(1, Math.ceil(cssH * dpr))
+        let entry = this.entries.get(node)
+        if (!entry) {
+            const canvas = document.createElement('canvas')
+            canvas.width = width
+            canvas.height = height
+            const context = canvas.getContext('2d')!
+            entry = {canvas, context, cssW, cssH}
+            this.entries.set(node, entry)
+        } else {
+            if (entry.canvas.width !== width || entry.canvas.height !== height) {
+                entry.canvas.width = width
+                entry.canvas.height = height
+            }
+            entry.cssW = cssW
+            entry.cssH = cssH
         }
-        const style = this.pageStyles + '\n' + this.svgOnlyStyles;
-        // TODO: Embed URL refs in HTML and CSS (for CSS it can be done once at initialization)
-        const svg = htmlToSvg(oHtml, style, options, false)
-            .replace('<svg viewBox', `<svg id="testSVGNODE" width="${rect.width}" height="${rect.height}" viewBox`)
-
-        return svg
+        return entry
     }
 
-    /**
-     * Cache of textures keyed by their source HTML elements.
-     * Allows texture reuse and proper disposal management.
-     */
-    textures = new Map<HTMLElement, CanvasTexture>()
+    private async buildSvg(node: HTMLElement, cssW: number, cssH: number, _dpr = 1): Promise<string> {
+        const clone = await prepareClone(node)
+        this.captureDynamicStateOnClone(node, clone)
+        const innerXml = wrapClone(node, new XMLSerializer().serializeToString(clone))
 
+        const pageStylesCss = await this.getPageStylesCss()
+        const style = BASELINE_CSS + '\n' + pageStylesCss + '\n' + this.pageStyles + '\n' + this.svgOnlyStyles
+
+        return (
+            `<svg xmlns="http://www.w3.org/2000/svg"` +
+            ` width="${cssW}" height="${cssH}" viewBox="0 0 ${cssW} ${cssH}">` +
+            `<style><![CDATA[${style}]]></style>` +
+            `<foreignObject x="0" y="0" width="100%" height="100%">${innerXml}</foreignObject>` +
+            `</svg>`
+        )
+
+        // todo - makes no difference
+        // const pxW = Math.ceil(cssW * dpr)
+        // const pxH = Math.ceil(cssH * dpr)
+        //
+        // // SVG width/height = device pixels (rasterization size)
+        // // foreignObject width/height = device pixels (Safari uses these for layout, ignoring viewBox)
+        // // CSS zoom scales content back to CSS pixel layout within the device-pixel foreignObject
+        // const needsZoom = dpr !== 1
+        // const zoomStyle = needsZoom ? ` style="zoom:${dpr}"` : ''
+        //
+        // return (
+        //     `<svg xmlns="http://www.w3.org/2000/svg"` +
+        //     ` width="${pxW}" height="${pxH}" viewBox="0 0 ${pxW} ${pxH}">` +
+        //     `<style><![CDATA[${style}]]></style>` +
+        //     `<foreignObject x="0" y="0" width="${pxW}" height="${pxH}">` +
+        //     `<div xmlns="http://www.w3.org/1999/xhtml"${zoomStyle}>${innerXml}</div>` +
+        //     `</foreignObject>` +
+        //     `</svg>`
+        // )
+
+    }
 }
 
-// document.body.appendChild(canvas)
-// canvas.style.position = 'fixed'
-// canvas.style.top = '0'
-// canvas.style.left = '0'
-// canvas.style.zIndex = '100000'
-// canvas.style.pointerEvents = 'none'
-// canvasTexture.flipY = false
-// canvasTexture.needsUpdate = true
+interface RendererEntry {
+    canvas: HTMLCanvasElement
+    context: CanvasRenderingContext2D
+    cssW: number
+    cssH: number
+}
+
+async function prepareClone(node: HTMLElement): Promise<HTMLElement> {
+    const clone = node.cloneNode(true) as HTMLElement
+    syncFormState(node, clone)
+    freezeResolvedTextMetrics(node, clone)
+    clone.style.removeProperty('transform')
+    clone.style.opacity = '1'
+    clone.style.visibility = 'visible'
+    await inlineExternalImages(clone)
+    clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+    return clone
+}
+
+function wrapClone(node: HTMLElement, cloneXml: string): string {
+    const parentEl = node.parentElement
+    const parentClass = parentEl?.getAttribute('class') || ''
+    const parentW = parentEl?.clientWidth || node.clientWidth || node.offsetWidth
+    const parentH = parentEl?.clientHeight || node.clientHeight || node.offsetHeight
+
+    const classAttr = parentClass ? ` class="${escapeXmlAttr(parentClass)}"` : ''
+    const ancestorOpen =
+        `<div xmlns="http://www.w3.org/1999/xhtml"${classAttr}` +
+        ` style="position:relative;width:${parentW}px;height:${parentH}px;margin:0;padding:0;">`
+    const ancestorClose = '</div>'
+
+    return (
+        `<body xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;">` +
+        ancestorOpen + cloneXml + ancestorClose +
+        `</body>`
+    )
+}
+
+async function loadSvgAsImage(svg: string, cssW: number, cssH: number): Promise<HTMLImageElement> {
+    const dataUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg)
+    try {
+        return await createImage(dataUrl)
+    } catch (e) {
+        const type = (e && typeof e === 'object' && 'type' in (e as any)) ? (e as any).type : typeof e
+        const err = new Error(
+            `HtmlRenderer: SVG image failed to load (${type}). ` +
+            `cssW=${cssW}, cssH=${cssH}, svg.length=${svg.length}. ` +
+            `svg head: ${svg.slice(0, 300).replace(/\s+/g, ' ')}…`,
+        )
+        ;(err as any).cause = e
+        ;(err as any).svg = svg
+        throw err
+    }
+}
+
+async function collectAndInlinePageStyles(): Promise<string> {
+    const sheets: string[] = []
+
+    for (const sheet of Array.from(document.styleSheets)) {
+        try {
+            const cssRules = Array.from(sheet.cssRules || [])
+            sheets.push(cssRules.map(r => r.cssText).join('\n'))
+        } catch {
+            if (!sheet.href) continue
+            try {
+                const res = await fetch(sheet.href)
+                if (res.ok) sheets.push(await res.text())
+            } catch (e) {
+                console.warn('[HtmlRenderer] failed to fetch stylesheet', sheet.href, e)
+            }
+        }
+    }
+
+    if (sheets.length === 0) return ''
+
+    let combined: string
+    try {
+        combined = await embedUrlRefs(sheets.join('\n'))
+    } catch (e) {
+        console.warn('[HtmlRenderer] URL embedding failed', e)
+        combined = sheets.join('\n')
+    }
+
+    const pseudoRules = rewritePseudoClasses(combined)
+    return pseudoRules ? combined + '\n' + pseudoRules : combined
+}
+
+const BASELINE_CSS = `
+a { color: -webkit-link; text-decoration: underline; cursor: pointer; }
+*.pseudo-focus-visible { outline: auto 1px -webkit-focus-ring-color; }
+input.pseudo-focus-visible, textarea.pseudo-focus-visible, select.pseudo-focus-visible { outline-offset: 0; }
+input[type="checkbox"].pseudo-focus-visible, input[type="radio"].pseudo-focus-visible { outline-offset: 2px; }
+a.pseudo-focus-visible { outline-offset: 1px; }
+@media (prefers-color-scheme: dark) {
+    button.pseudo-hover, select.pseudo-hover,
+    input.pseudo-hover, textarea.pseudo-hover {
+        filter: brightness(1.1);
+    }
+    button.pseudo-active, select.pseudo-active,
+    input.pseudo-active, textarea.pseudo-active {
+        filter: brightness(0.9);
+    }
+}
+@media (prefers-color-scheme: light) {
+    button.pseudo-hover, select.pseudo-hover,
+    input.pseudo-hover, textarea.pseudo-hover {
+        filter: brightness(0.9);
+    }
+    button.pseudo-active, select.pseudo-active,
+    input.pseudo-active, textarea.pseudo-active {
+        filter: brightness(1.1);
+    }
+}
+`
+
+const PSEUDO_RE = /:(?:hover|focus-visible|focus-within|focus(?!-)|active)\b/g
+const PSEUDO_RE_TEST = /:(?:hover|focus-visible|focus-within|focus(?!-)|active)\b/
+
+function rewritePseudoClasses(css: string): string {
+    let sheet: CSSStyleSheet
+    try {
+        sheet = new CSSStyleSheet()
+        sheet.replaceSync(css)
+    } catch {
+        return ''
+    }
+    const out: string[] = []
+    collectRewrittenRules(sheet.cssRules, out)
+    return out.join('\n')
+}
+
+function collectRewrittenRules(rules: CSSRuleList, out: string[]): void {
+    for (let i = 0; i < rules.length; i++) {
+        const rule = rules[i]
+        if (rule instanceof CSSStyleRule) {
+            if (PSEUDO_RE_TEST.test(rule.selectorText)) {
+                const newSelector = rule.selectorText.replace(PSEUDO_RE, m =>
+                    '.pseudo-' + m.slice(1),
+                )
+                out.push(`${newSelector} { ${rule.style.cssText} }`)
+            }
+        } else if ('cssRules' in rule) {
+            const group = rule as CSSGroupingRule
+            const inner: string[] = []
+            collectRewrittenRules(group.cssRules, inner)
+            if (inner.length) {
+                let condText = ''
+                if (rule instanceof CSSMediaRule) condText = `@media ${rule.conditionText}`
+                else if (rule instanceof CSSSupportsRule) condText = `@supports ${rule.conditionText}`
+                else condText = (rule as any).cssText?.split('{')[0]?.trim() ?? ''
+                if (condText) out.push(`${condText} {\n${inner.join('\n')}\n}`)
+            }
+        }
+    }
+}
+
+function escapeXmlAttr(s: string): string {
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+}
+
+function writeDynamicStateInline(src: HTMLElement, dst: HTMLElement) {
+    if (src.scrollLeft !== 0 || src.scrollTop !== 0) {
+        dst.style.setProperty('--scroll-left', -src.scrollLeft + 'px')
+        dst.style.setProperty('--scroll-top', -src.scrollTop + 'px')
+    }
+
+    const animations = src.getAnimations()
+    if (animations.length !== 1) return
+    const anim = animations[0]
+    const timeMs = typeof anim.currentTime === 'number' ? anim.currentTime : 0
+    const delayStr = getComputedStyle(src).animationDelay
+    const delaySec = delayStr.endsWith('ms')
+        ? parseFloat(delayStr) / 1000
+        : parseFloat(delayStr)
+    const adjustedDelaySec = (delaySec || 0) - timeMs / 1000
+    dst.style.setProperty('--animation-delay', adjustedDelaySec + 's')
+}
+
+const MIRROR_PROPS = [
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
+    'lineHeight', 'letterSpacing', 'wordSpacing', 'textIndent', 'textTransform',
+    'whiteSpace', 'wordWrap', 'overflowWrap', 'wordBreak',
+    'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+    'boxSizing', 'width', 'direction', 'textAlign',
+] as const
+
+let mirrorDiv: HTMLDivElement | null = null
+
+/** Measure pixel position of a character index within an input or textarea using a mirror div. */
+function measureCharPosition(
+    el: HTMLInputElement | HTMLTextAreaElement,
+    charIndex: number,
+): {x: number; y: number; height: number} {
+    if (!mirrorDiv) {
+        mirrorDiv = document.createElement('div')
+        mirrorDiv.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;overflow:hidden;'
+        document.body.appendChild(mirrorDiv)
+    }
+
+    const cs = getComputedStyle(el)
+    const isInput = el instanceof HTMLInputElement
+
+    // Copy text-affecting styles to mirror
+    for (const prop of MIRROR_PROPS) mirrorDiv.style[prop as any] = cs[prop as any]
+    mirrorDiv.style.whiteSpace = isInput ? 'pre' : cs.whiteSpace
+    mirrorDiv.style.height = 'auto'
+    mirrorDiv.style.overflowY = 'hidden'
+
+    const text = el.value
+    const before = text.substring(0, charIndex)
+
+    // Insert text before caret, then a marker span
+    mirrorDiv.textContent = ''
+    const textNode = document.createTextNode(before)
+    const marker = document.createElement('span')
+    marker.textContent = '|'
+    mirrorDiv.appendChild(textNode)
+    mirrorDiv.appendChild(marker)
+    // Add remaining text for correct wrapping context
+    mirrorDiv.appendChild(document.createTextNode(text.substring(charIndex) || '.'))
+
+    const fontSize = parseFloat(cs.fontSize)
+    const lhParsed = parseFloat(cs.lineHeight)
+    const lineHeight = isNaN(lhParsed) ? fontSize * 1.2
+        : cs.lineHeight.endsWith('px') ? lhParsed
+        : lhParsed * fontSize
+
+    return {
+        x: marker.offsetLeft,
+        y: marker.offsetTop,
+        height: lineHeight,
+    }
+}
+
+function injectCaretAndSelection(rootSrc: HTMLElement, rootDst: HTMLElement) {
+    const active = document.activeElement
+    if (!active) return
+
+    let inputEl: HTMLInputElement | HTMLTextAreaElement
+    if (active instanceof HTMLInputElement) {
+        const t = active.type
+        if (t !== 'text' && t !== 'search' && t !== 'url' && t !== 'tel' && t !== 'password' && t !== '') return
+        inputEl = active
+    } else if (active instanceof HTMLTextAreaElement) {
+        inputEl = active
+    } else {
+        return
+    }
+
+    if (!rootSrc.contains(inputEl)) return
+    const selStart = inputEl.selectionStart
+    const selEnd = inputEl.selectionEnd
+    if (selStart === null || selEnd === null) return
+
+    const cs = getComputedStyle(inputEl)
+    const borderLeft = parseFloat(cs.borderLeftWidth) || 0
+    const borderTop = parseFloat(cs.borderTopWidth) || 0
+
+    // Walk offsetParent chain to get position in layout space relative to rootSrc
+    let offsetX = 0, offsetY = 0
+    let el: HTMLElement | null = inputEl
+    while (el && el !== rootSrc) {
+        offsetX += el.offsetLeft
+        offsetY += el.offsetTop
+        el = el.offsetParent as HTMLElement | null
+    }
+
+    const contentOriginX = offsetX + borderLeft
+    const contentOriginY = offsetY + borderTop
+
+    // Clip bounds (visible content area)
+    const clipLeft = contentOriginX
+    const clipRight = clipLeft + inputEl.clientWidth
+    const clipTop = contentOriginY
+    const clipBottom = clipTop + inputEl.clientHeight
+
+    if (selStart === selEnd) {
+        // Caret
+        const pos = measureCharPosition(inputEl, selStart)
+        const caretX = contentOriginX + pos.x - inputEl.scrollLeft
+        const caretY = contentOriginY + pos.y - inputEl.scrollTop
+
+        const caretVisible = Math.floor(Date.now() / 500) % 2 === 0
+        if (caretVisible && caretX >= clipLeft && caretX <= clipRight
+            && caretY >= clipTop && caretY + pos.height <= clipBottom) {
+            const caret = document.createElement('div')
+            caret.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+            caret.style.cssText =
+                `position:absolute;pointer-events:none;` +
+                `left:${caretX}px;top:${caretY}px;` +
+                `width:2px;height:${pos.height}px;` +
+                `background:currentColor;`
+            rootDst.appendChild(caret)
+        }
+    } else {
+        // Selection — may span multiple lines
+        const startPos = measureCharPosition(inputEl, selStart)
+        const endPos = measureCharPosition(inputEl, selEnd)
+
+        const lineHeight = startPos.height
+        const scrollL = inputEl.scrollLeft
+        const scrollT = inputEl.scrollTop
+
+        if (startPos.y === endPos.y) {
+            // Single-line selection
+            const left = Math.max(contentOriginX + startPos.x - scrollL, clipLeft)
+            const right = Math.min(contentOriginX + endPos.x - scrollL, clipRight)
+            const top = contentOriginY + startPos.y - scrollT
+            if (right > left && top >= clipTop && top + lineHeight <= clipBottom) {
+                const highlight = document.createElement('div')
+                highlight.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+                highlight.style.cssText =
+                    `position:absolute;pointer-events:none;` +
+                    `left:${left}px;top:${top}px;` +
+                    `width:${right - left}px;height:${lineHeight}px;` +
+                    `background:Highlight;opacity:0.5;`
+                rootDst.appendChild(highlight)
+            }
+        } else {
+            // Multi-line selection: first line, middle lines, last line
+            const lines: {left: number; right: number; top: number}[] = []
+            // First line: from selStart to end of line
+            lines.push({left: contentOriginX + startPos.x - scrollL, right: clipRight, top: contentOriginY + startPos.y - scrollT})
+            // Middle full lines
+            for (let y = startPos.y + lineHeight; y < endPos.y; y += lineHeight) {
+                lines.push({left: clipLeft, right: clipRight, top: contentOriginY + y - scrollT})
+            }
+            // Last line: from start of line to selEnd
+            lines.push({left: clipLeft, right: contentOriginX + endPos.x - scrollL, top: contentOriginY + endPos.y - scrollT})
+
+            for (const line of lines) {
+                const left = Math.max(line.left, clipLeft)
+                const right = Math.min(line.right, clipRight)
+                if (right <= left) continue
+                if (line.top + lineHeight < clipTop || line.top > clipBottom) continue
+                const highlight = document.createElement('div')
+                highlight.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+                highlight.style.cssText =
+                    `position:absolute;pointer-events:none;` +
+                    `left:${left}px;top:${line.top}px;` +
+                    `width:${right - left}px;height:${lineHeight}px;` +
+                    `background:Highlight;opacity:0.5;`
+                rootDst.appendChild(highlight)
+            }
+        }
+    }
+}
+
+function injectPageSelection(rootSrc: HTMLElement, rootDst: HTMLElement) {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return
+
+    // Check if selection intersects our element
+    const range = selection.getRangeAt(0)
+    if (!rootSrc.contains(range.startContainer) && !rootSrc.contains(range.endContainer)) return
+
+    // Temporarily remove 3D transform so getBoundingClientRect/getClientRects
+    // return flat layout-space coordinates, not perspective-distorted ones.
+    const savedTransform = rootSrc.style.transform
+    const savedTransformOrigin = rootSrc.style.transformOrigin
+    rootSrc.style.transform = 'none'
+    rootSrc.style.transformOrigin = ''
+
+    const rootRect = rootSrc.getBoundingClientRect()
+    const scaleX = rootSrc.offsetWidth / rootRect.width
+    const scaleY = rootSrc.offsetHeight / rootRect.height
+
+    // Clip to visible area
+    const clipRight = rootSrc.offsetWidth
+    const clipBottom = rootSrc.offsetHeight
+
+    const rects = range.getClientRects()
+    // Collect rect data before restoring transform
+    const rectData: {left: number; top: number; width: number; height: number}[] = []
+    for (let i = 0; i < rects.length; i++) {
+        const r = rects[i]
+        rectData.push({
+            left: (r.left - rootRect.left) * scaleX + rootSrc.scrollLeft,
+            top: (r.top - rootRect.top) * scaleY + rootSrc.scrollTop,
+            width: r.width * scaleX,
+            height: r.height * scaleY,
+        })
+    }
+
+    // Restore transform immediately
+    rootSrc.style.transform = savedTransform
+    rootSrc.style.transformOrigin = savedTransformOrigin
+
+    for (let i = 0; i < rectData.length; i++) {
+        let {left, top, width, height} = rectData[i]
+
+        // Clip to element bounds
+        if (left < 0) { width += left; left = 0 }
+        if (top < 0) { height += top; top = 0 }
+        if (left + width > clipRight) width = clipRight - left
+        if (top + height > clipBottom) height = clipBottom - top
+        if (width <= 0 || height <= 0) continue
+
+        const highlight = document.createElement('div')
+        highlight.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+        highlight.style.cssText =
+            `position:absolute;pointer-events:none;` +
+            `left:${left}px;top:${top}px;` +
+            `width:${width}px;height:${height}px;` +
+            `background:Highlight;opacity:0.5;`
+        rootDst.appendChild(highlight)
+    }
+}
+
+function freezeResolvedTextMetrics(src: HTMLElement, dst: HTMLElement) {
+    const srcAll = [src, ...src.querySelectorAll<HTMLElement>('*')]
+    const dstAll = [dst, ...dst.querySelectorAll<HTMLElement>('*')]
+    if (srcAll.length !== dstAll.length) return
+    for (let i = 0; i < srcAll.length; i++) {
+        const cs = getComputedStyle(srcAll[i])
+        dstAll[i].style.fontSize = cs.fontSize
+        dstAll[i].style.lineHeight = cs.lineHeight
+    }
+}
+
+
+const dataUrlCache = new Map<string, Promise<string>>()
+
+function fetchAsDataUrl(url: string): Promise<string> {
+    const cached = dataUrlCache.get(url)
+    if (cached) return cached
+    const p = fetch(url)
+        .then(r => {
+            if (!r.ok) throw new Error(`fetch ${url} → ${r.status}`)
+            return r.blob()
+        })
+        .then(blob => new Promise<string>((resolve, reject) => {
+            const fr = new FileReader()
+            fr.onload = () => resolve(fr.result as string)
+            fr.onerror = () => reject(fr.error)
+            fr.readAsDataURL(blob)
+        }))
+    dataUrlCache.set(url, p)
+    p.catch(() => {
+        if (dataUrlCache.get(url) === p) dataUrlCache.delete(url)
+    })
+    return p
+}
+
+async function inlineExternalImages(root: HTMLElement): Promise<void> {
+    const imgs = Array.from(root.querySelectorAll('img'))
+    await Promise.all(imgs.map(async img => {
+        const src = img.getAttribute('src')
+        if (!src || src.startsWith('data:')) return
+        try {
+            const abs = new URL(src, document.baseURI).href
+            img.setAttribute('src', await fetchAsDataUrl(abs))
+        } catch (e) {
+            console.warn('[HtmlRenderer] failed to inline img', src, e)
+            img.removeAttribute('src')
+        }
+    }))
+}

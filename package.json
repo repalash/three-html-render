@@ -1,27 +1,79 @@
 {
   "name": "three-html-render",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build --base ./",
-    "preview": "vite preview"
+  "description": "HTML-in-Canvas polyfill and Three.js integration for rendering live HTML as WebGL/WebGPU textures",
+  "author": "repalash <palash@shaders.app>",
+  "license": "MIT",
+  "module": "./dist/polyfill.mjs",
+  "types": "./dist/htmlInCanvasPolyfill.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/htmlInCanvasPolyfill.d.ts",
+      "import": "./dist/polyfill.mjs"
+    },
+    "./renderer": {
+      "types": "./dist/threeHTMLRenderer.d.ts",
+      "import": "./dist/renderer.js"
+    },
+    "./polyfill": {
+      "types": "./dist/htmlInCanvasPolyfill.d.ts",
+      "import": "./dist/polyfill.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "./dist/polyfill.js",
+    "./dist/polyfill.mjs"
+  ],
+  "peerDependencies": {
+    "three": ">=0.150.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/three": "^0.164.1",
     "dat.gui": "^0.7.9",
+    "playwright": "^1.59.1",
+    "rollup-plugin-license": "^3.7.1",
     "three": "^0.164.1",
+    "ts-browser-helpers": "^0.12.0",
     "typescript": "^5.2.2",
-    "vite": "^5.2.0"
+    "vite": "^6.1.1",
+    "vite-plugin-dts": "^4.5.4"
   },
-  "author": "repalash <palash@shaders.app>",
-  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && vite build --config vite.config.extension.ts",
+    "build:demo": "vite build --config vite.config.demo.ts",
+    "build:extension": "vite build --config vite.config.extension.ts && cp dist/polyfill.js extension/chrome/ && cp dist/polyfill.js extension/safari/",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "preview": "vite preview"
+  },
   "bugs": {
     "url": "https://github.com/repalash/three-html-render/issues"
   },
   "homepage": "https://github.com/repalash/three-html-render#readme",
-  "dependencies": {
-    "ts-browser-helpers": "^0.12.0"
-  }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/repalash/three-html-render.git"
+  },
+  "keywords": [
+    "three",
+    "threejs",
+    "html",
+    "canvas",
+    "render",
+    "texture",
+    "html-in-canvas",
+    "polyfill"
+  ]
 }

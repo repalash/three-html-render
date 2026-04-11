@@ -1,0 +1,155 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Demo of complex text in WebGL</title>
+
+<script
+  src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
+  integrity="sha512-zhHQR0/H5SEBL3Wn6yYSaTTZej12z0hVZKOv3TwCUXT1z5qeqGcXJLLrbERYRScEDDpYIJhPC1fk31gqR783iQ=="
+  crossorigin="anonymous"></script>
+<script src="/examples/assets/webGLSetup.js"></script>
+
+<style>
+  body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+  canvas {
+    border: 1px solid blue;
+    width: 90vw;
+    aspect-ratio: 2 / 1;
+  }
+  #draw_element {
+    border: 1px solid blue;
+    width: 400px;
+    height: 400px;
+    padding: 10px;
+  }
+</style>
+
+<canvas id="gl-canvas" layoutsubtree="true">
+  <div id="draw_element" inert>
+    Hello world!<br>I'm multi-line, <b>formatted</b>,
+    rotated text with emoji (&#128512;), RTL text
+    <span dir=rtl>من فارسی صحبت میکنم</span>,
+    vertical text,
+    <p style="writing-mode: vertical-rl;">
+      这是垂直文本
+    </p>
+    an inline image (<img width="150" src="/examples/assets/wolf.jpg">), and
+    <svg width="50" height="50">
+      <circle cx="25" cy="25" r="20" fill="green" />
+      <text x="25" y="30" font-size="15" text-anchor="middle" fill="#fff">
+        SVG
+      </text>
+    </svg>!
+  </div>
+</canvas>
+
+<script type="module">
+  import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
+  installHtmlInCanvasPolyfill();
+
+  let cubeRotation = 0.0;
+  let currentTime = 0;
+  let deltaTime = 0;
+  let render_context = null;
+
+  function loadTexture(gl) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    const level = 0;
+    const internalFormat = gl.RGBA;
+    const srcFormat = gl.RGBA;
+    const srcType = gl.UNSIGNED_BYTE;
+
+    gl.texElementImage2D(gl.TEXTURE_2D, level, internalFormat,
+                         srcFormat, srcType, window.draw_element);
+    window.__lastTexError = gl.getError();
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    return texture;
+  }
+
+  function render() {
+    const new_time = performance.now() * 0.001;
+    deltaTime = new_time - currentTime;
+    currentTime = new_time;
+
+    if (render_context === null) return;
+
+    drawScene(render_context.gl,
+              render_context.program,
+              render_context.buffers,
+              render_context.texture,
+              cubeRotation);
+
+    cubeRotation += deltaTime;
+    requestAnimationFrame(render);
+  }
+
+  function main() {
+    const canvas = document.querySelector('#gl-canvas');
+    const gl = canvas.getContext('webgl2');
+    if (gl === null) {
+      alert('Unable to initialize WebGL. Your browser or machine may not support it.');
+      return;
+    }
+
+    const vsSource = `
+      attribute vec4 aVertexPosition;
+      attribute vec2 aTextureCoord;
+      uniform mat4 uModelViewMatrix;
+      uniform mat4 uProjectionMatrix;
+      varying highp vec2 vTextureCoord;
+      void main(void) {
+        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        vTextureCoord = aTextureCoord;
+      }
+    `;
+    const fsSource = `
+      varying highp vec2 vTextureCoord;
+      uniform sampler2D uSampler;
+      void main(void) {
+        gl_FragColor = texture2D(uSampler, vTextureCoord);
+      }
+    `;
+
+    const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+    const programInfo = {
+      program: shaderProgram,
+      attribLocations: {
+        vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+        textureCoord: gl.getAttribLocation(shaderProgram, 'aTextureCoord'),
+      },
+      uniformLocations: {
+        projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+        modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+        uSampler: gl.getUniformLocation(shaderProgram, 'uSampler'),
+      },
+    };
+
+    const buffers = initBuffers(gl);
+    const texture = loadTexture(gl);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+    render_context = {gl, program: programInfo, buffers, texture};
+    requestAnimationFrame(render);
+  }
+
+  const canvas = document.querySelector('#gl-canvas');
+  canvas.onpaint = () => { if (!render_context) main(); };
+  canvas.requestPaint();
+
+  const observer = new ResizeObserver(([entry]) => {
+    if (entry.devicePixelContentBoxSize && entry.devicePixelContentBoxSize[0]) {
+      canvas.width = entry.devicePixelContentBoxSize[0].inlineSize;
+      canvas.height = entry.devicePixelContentBoxSize[0].blockSize;
+    } else {
+      const b = entry.contentBoxSize[0];
+      canvas.width = Math.round(b.inlineSize * devicePixelRatio);
+      canvas.height = Math.round(b.blockSize * devicePixelRatio);
+    }
+  });
+  observer.observe(canvas);
+</script>
