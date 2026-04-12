@@ -1,6 +1,8 @@
 import {createImage, css, embedUrlRefs} from 'ts-browser-helpers'
 import {syncFormState} from './syncFormState'
 
+const _debugHIC = typeof location !== 'undefined' && new URLSearchParams(location.search).has('debugPolyfillHIC')
+
 export class HtmlRenderer {
     pixelRatio = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
 
@@ -22,8 +24,29 @@ export class HtmlRenderer {
         const pxW = entry.canvas.width
         const pxH = entry.canvas.height
         const svg = await this.buildSvg(node, cssW, cssH, dpr)
-        const image = await loadSvgAsImage(svg, pxW, pxH)
 
+        if (svg === entry.lastSvg) {
+            if (_debugHIC)
+                console.log('[html-in-canvas debug] rasterization skipped (unchanged)')
+            return entry.canvas
+        }
+        if (_debugHIC && entry.lastSvg) {
+            const oldLines = entry.lastSvg.split('<')
+            const newLines = svg.split('<')
+            const diffs: string[] = []
+            const len = Math.max(oldLines.length, newLines.length)
+            for (let i = 0; i < len; i++) {
+                if (oldLines[i] !== newLines[i]) {
+                    diffs.push(`  - ${(oldLines[i] || '').slice(0, 120)}`)
+                    diffs.push(`  + ${(newLines[i] || '').slice(0, 120)}`)
+                }
+                if (diffs.length > 20) { diffs.push('  ...'); break }
+            }
+            console.log('[html-in-canvas debug] SVG changed:\n' + diffs.join('\n'))
+        }
+        entry.lastSvg = svg
+
+        const image = await loadSvgAsImage(svg, pxW, pxH)
         entry.context.clearRect(0, 0, pxW, pxH)
         entry.context.drawImage(image, 0, 0, pxW, pxH)
         return entry.canvas
@@ -120,13 +143,36 @@ export class HtmlRenderer {
         const pageStylesCss = await this.getPageStylesCss()
         const style = BASELINE_CSS + '\n' + pageStylesCss + '\n' + this.pageStyles + '\n' + this.svgOnlyStyles
 
-        return (
+        const svg = (
             `<svg xmlns="http://www.w3.org/2000/svg"` +
             ` width="${cssW}" height="${cssH}" viewBox="0 0 ${cssW} ${cssH}">` +
             `<style><![CDATA[${style}]]></style>` +
             `<foreignObject x="0" y="0" width="100%" height="100%">${innerXml}</foreignObject>` +
             `</svg>`
         )
+        if (_debugHIC) {
+            let dbg = document.getElementById('__hic-svg-debug__') as HTMLDivElement
+            if (!dbg) {
+                dbg = document.createElement('div')
+                dbg.id = '__hic-svg-debug__'
+                dbg.style.cssText = 'position:absolute;z-index:99999;pointer-events:none;opacity:0.3;box-sizing:border-box;margin:0;padding:0;border:none;overflow:hidden;'
+                document.body.appendChild(dbg)
+            }
+            const canvasEl = document.querySelector('canvas')
+            if (canvasEl) {
+                const cr = canvasEl.getBoundingClientRect()
+                dbg.style.left = (cr.left + window.scrollX) + 'px'
+                dbg.style.top = (cr.top + window.scrollY) + 'px'
+                dbg.style.width = cr.width + 'px'
+                dbg.style.height = cr.height + 'px'
+            }
+            if (!dbg.innerHTML) {
+                dbg.innerHTML = svg
+                const svgEl = dbg.querySelector('svg')
+                if (svgEl) { svgEl.style.width = '100%'; svgEl.style.height = '100%'; }
+            }
+        }
+        return svg
 
         // todo - makes no difference
         // const pxW = Math.ceil(cssW * dpr)
@@ -156,6 +202,7 @@ interface RendererEntry {
     context: CanvasRenderingContext2D
     cssW: number
     cssH: number
+    lastSvg?: string
 }
 
 async function prepareClone(node: HTMLElement): Promise<HTMLElement> {
@@ -183,9 +230,10 @@ function wrapClone(node: HTMLElement, cloneXml: string): string {
     const ancestorClose = '</div>'
 
     return (
-        `<body xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;">` +
+        `<html xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;background:transparent !important;">` +
+        `<body style="margin:0;padding:0;background:transparent !important;">` +
         ancestorOpen + cloneXml + ancestorClose +
-        `</body>`
+        `</body></html>`
     )
 }
 
@@ -228,7 +276,12 @@ async function collectAndInlinePageStyles(): Promise<string> {
 
     let combined: string
     try {
-        combined = await embedUrlRefs(sheets.join('\n'))
+        combined = await embedUrlRefs(sheets.join('\n'), async (url) => {
+            // Skip W3C namespace URIs — not actual resources
+            if (url.startsWith('http://www.w3.org/')) return url
+            try { return await fetchAsDataUrl(url) }
+            catch { return url }
+        })
     } catch (e) {
         console.warn('[HtmlRenderer] URL embedding failed', e)
         combined = sheets.join('\n')
@@ -571,8 +624,13 @@ function freezeResolvedTextMetrics(src: HTMLElement, dst: HTMLElement) {
     if (srcAll.length !== dstAll.length) return
     for (let i = 0; i < srcAll.length; i++) {
         const cs = getComputedStyle(srcAll[i])
-        dstAll[i].style.fontSize = cs.fontSize
-        dstAll[i].style.lineHeight = cs.lineHeight
+        // Floor all fractional vertical dimensions to prevent cumulative
+        // sub-pixel drift in SVG-as-image rasterization
+        for (const prop of ['fontSize', 'lineHeight', 'height', 'minHeight', 'maxHeight', 'marginTop', 'marginBottom', 'paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'] as const) {
+            const v = parseFloat(cs[prop])
+            if (isNaN(v)) continue
+            dstAll[i].style[prop] = (v % 1 !== 0) ? Math.floor(v) + 'px' : cs[prop]
+        }
     }
 }
 

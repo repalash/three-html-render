@@ -111,7 +111,7 @@ function drawElementImage(
     dw?: number, dh?: number,
 ): DOMMatrix {
     const canvas = this.canvas as HTMLCanvasElement
-    const state = STATES.get(canvas)
+    const state = STATES.get(canvas) || ensureState(canvas)
     if (!state)
         throw new DOMException('canvas is not [layoutsubtree]', 'InvalidStateError')
     if (!state.children.has(el))
@@ -120,7 +120,7 @@ function drawElementImage(
     const bitmap = renderer.getCanvas(el)
     const cssSize = renderer.getCssSize(el)
     if (!bitmap || !cssSize)
-        throw new DOMException('no snapshot recorded yet', 'InvalidStateError')
+        return new DOMMatrix()
 
     const cssW = cssSize.width
     const cssH = cssSize.height
@@ -287,7 +287,7 @@ function getElementTransform(
     drawTransform: DOMMatrix,
 ): DOMMatrix {
     const canvas = this
-    const state = STATES.get(canvas)
+    const state = STATES.get(canvas) || ensureState(canvas)
     if (!state)
         throw new DOMException('canvas is not [layoutsubtree]', 'InvalidStateError')
     if (!state.children.has(element))
@@ -348,7 +348,7 @@ function patchCanvasElement() {
             const s = ensureState(this)
             if (!s) return
             for (const c of s.children) s.dirty.add(c)
-            schedulePaint(s)
+            schedulePaint(s, 'requestPaint')
         },
     })
 
@@ -362,7 +362,7 @@ function patchCanvasElement() {
         configurable: true,
         writable: true,
         value: function (this: HTMLCanvasElement, element: HTMLElement) {
-            const state = STATES.get(this)
+            const state = STATES.get(this) || ensureState(this)
             if (!state)
                 throw new DOMException('canvas is not [layoutsubtree]', 'InvalidStateError')
             if (!state.children.has(element))
@@ -381,6 +381,7 @@ function patchCanvasElement() {
 
     patchCanvasDOMMutations()
     patchParentNode()
+    patchCanvasEventListeners()
 }
 
 function interceptCanvasChildAccessor<K extends keyof Element>(
@@ -406,10 +407,11 @@ function addChildToState(state: CanvasState, el: HTMLElement, before?: Node | nu
     el.style.left = '0'
     el.style.top = '0'
     el.style.opacity = '0'
+    el.style.pointerEvents = 'auto'
     state.children.add(el)
     state.dirty.add(el)
     parentOverrides.set(el, state.canvas)
-    schedulePaint(state)
+    schedulePaint(state, 'addChildToState')
 }
 
 function removeChildFromState(state: CanvasState, el: HTMLElement) {
@@ -422,6 +424,7 @@ function removeChildFromState(state: CanvasState, el: HTMLElement) {
     el.style.removeProperty('left')
     el.style.removeProperty('top')
     el.style.removeProperty('opacity')
+    el.style.removeProperty('pointer-events')
     el.style.removeProperty('transform-origin')
     return true
 }
@@ -489,6 +492,48 @@ function patchParentNode() {
             },
         })
     }
+}
+
+const MOUSE_EVENT_TYPES = new Set([
+    'mousemove', 'mousedown', 'mouseup', 'mouseenter', 'mouseleave', 'mouseover', 'mouseout',
+    'click', 'dblclick', 'contextmenu', 'wheel',
+    'pointerdown', 'pointerup', 'pointermove', 'pointerenter', 'pointerleave', 'pointerover', 'pointerout',
+])
+
+function patchCanvasEventListeners() {
+    const origAdd = EventTarget.prototype.addEventListener
+    const origRemove = EventTarget.prototype.removeEventListener
+    const hostListeners = new WeakMap<EventListenerOrEventListenerObject, EventListenerOrEventListenerObject>()
+
+    definePatchedProperty(HTMLCanvasElement.prototype, 'addEventListener', {
+        configurable: true,
+        writable: true,
+        value: function (this: HTMLCanvasElement, type: string, listener: any, options?: any) {
+            origAdd.call(this, type, listener, options)
+            const s = STATES.get(this)
+            if (s && MOUSE_EVENT_TYPES.has(type) && listener) {
+                const hostFn = typeof listener === 'function' ? listener.bind(this) : listener
+                hostListeners.set(listener, hostFn)
+                origAdd.call(s.host, type, hostFn, options)
+            }
+        },
+    })
+
+    definePatchedProperty(HTMLCanvasElement.prototype, 'removeEventListener', {
+        configurable: true,
+        writable: true,
+        value: function (this: HTMLCanvasElement, type: string, listener: any, options?: any) {
+            origRemove.call(this, type, listener, options)
+            const s = STATES.get(this)
+            if (s && MOUSE_EVENT_TYPES.has(type) && listener) {
+                const hostFn = hostListeners.get(listener)
+                if (hostFn) {
+                    origRemove.call(s.host, type, hostFn, options)
+                    hostListeners.delete(listener)
+                }
+            }
+        },
+    })
 }
 
 function definePatchedProperty(target: object, prop: string, descriptor: PropertyDescriptor) {
@@ -607,24 +652,24 @@ function createHost(canvas: HTMLCanvasElement): HTMLDivElement {
 }
 
 function attachHostListeners(host: HTMLDivElement, state: CanvasState) {
-    const markAllDirty = () => {
+    const markAllDirty = (reason = 'hostListener') => {
         for (const c of state.children) state.dirty.add(c)
-        schedulePaint(state)
+        schedulePaint(state, reason)
     }
 
     host.addEventListener('load', e => {
-        if (e.target instanceof HTMLImageElement) markAllDirty()
+        if (e.target instanceof HTMLImageElement) markAllDirty('image-load')
     }, true)
 
-    host.addEventListener('input', markAllDirty, true)
-    host.addEventListener('change', markAllDirty, true)
+    host.addEventListener('input', () => markAllDirty('input'), true)
+    host.addEventListener('change', () => markAllDirty('change'), true)
 
     // Caret/selection movement and page-level text selection
     const onSelectionChange = () => {
         const sel = window.getSelection()
         const hasPageSelection = sel && !sel.isCollapsed && sel.rangeCount > 0
             && host.contains(sel.getRangeAt(0).startContainer)
-        if (host.contains(document.activeElement) || hasPageSelection) markAllDirty()
+        if (host.contains(document.activeElement) || hasPageSelection) markAllDirty('selectionchange')
     }
     document.addEventListener('selectionchange', onSelectionChange)
     state.cleanups.push(() => document.removeEventListener('selectionchange', onSelectionChange))
@@ -661,7 +706,7 @@ function attachHostListeners(host: HTMLDivElement, state: CanvasState) {
         // Start caret blink repaint for text inputs
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
             if (state.caretBlinkInterval) clearInterval(state.caretBlinkInterval)
-            state.caretBlinkInterval = setInterval(markAllDirty, 500)
+            state.caretBlinkInterval = setInterval(() => markAllDirty('caret-blink'), 500)
         }
     }, true)
 
@@ -675,7 +720,7 @@ function attachHostListeners(host: HTMLDivElement, state: CanvasState) {
         if (state.caretBlinkInterval) {
             clearInterval(state.caretBlinkInterval)
             state.caretBlinkInterval = null
-            markAllDirty() // One final repaint to remove the caret
+            markAllDirty('caret-remove') // One final repaint to remove the caret
         }
     }, true)
 
@@ -719,7 +764,7 @@ function attachObservers(state: CanvasState) {
     const resizeObs = new ResizeObserver(() => {
         state.positionHost()
         for (const c of state.children) state.dirty.add(c)
-        schedulePaint(state)
+        schedulePaint(state, 'ResizeObserver')
     })
     resizeObs.observe(state.canvas)
     state.observers.push(resizeObs)
@@ -736,7 +781,7 @@ function attachObservers(state: CanvasState) {
                 any = true
             }
         }
-        if (any) schedulePaint(state)
+        if (any) schedulePaint(state, 'MutationObserver')
     })
     mutationObs.observe(state.host, {childList: true, subtree: true, attributes: true, characterData: true})
     state.observers.push(mutationObs)
@@ -765,12 +810,15 @@ function teardownCanvasState(state: CanvasState) {
             el.classList.remove(...pseudoClasses)
         }
         removeChildFromState(state, child)
-        state.canvas.appendChild(child)
+        Node.prototype.appendChild.call(state.canvas, child)
     }
     state.host.remove()
 }
 
-function schedulePaint(state: CanvasState) {
+const _debugHIC = typeof location !== 'undefined' && new URLSearchParams(location.search).has('debugPolyfillHIC')
+
+function schedulePaint(state: CanvasState, _caller?: string) {
+    if (_debugHIC && _caller) console.trace('[html-in-canvas debug] schedulePaint from:', _caller)
     if (state.rafHandle) return
     state.rafHandle = requestAnimationFrame(async () => {
         state.rafHandle = 0
