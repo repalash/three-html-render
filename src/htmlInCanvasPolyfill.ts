@@ -96,6 +96,31 @@ export function uninstallHtmlInCanvasPolyfill() {
     delete (window as any).__HIC_UNINSTALL__
 }
 
+function requireState(canvas: HTMLCanvasElement, element: HTMLElement): CanvasState {
+    const state = STATES.get(canvas) || ensureState(canvas)
+    if (!state)
+        throw new DOMException('canvas is not [layoutsubtree]', 'InvalidStateError')
+    if (!state.children.has(element))
+        throw new DOMException('element is not a direct child of the canvas', 'InvalidStateError')
+    return state
+}
+
+// M = T_origin^-1 · S_css_to_grid^-1 · T_draw · S_css_to_grid · T_origin
+function computeElementTransform(
+    el: HTMLElement, drawTransform: DOMMatrix,
+    sx: number, sy: number, cssW: number, cssH: number,
+): DOMMatrix {
+    const S = new DOMMatrix().scale(sx, sy)
+    const Sinv = new DOMMatrix().scale(1 / sx, 1 / sy)
+    const cs = getComputedStyle(el)
+    const originParts = cs.transformOrigin.split(' ')
+    const ox = parseFloat(originParts[0]) || cssW / 2
+    const oy = parseFloat(originParts[1]) || cssH / 2
+    const T_o = new DOMMatrix().translate(ox, oy)
+    const T_oi = new DOMMatrix().translate(-ox, -oy)
+    return T_oi.multiply(Sinv).multiply(drawTransform).multiply(S).multiply(T_o)
+}
+
 function patchContext() {
     definePatchedProperty(CanvasRenderingContext2D.prototype, 'drawElementImage', {
         configurable: true,
@@ -111,11 +136,7 @@ function drawElementImage(
     dw?: number, dh?: number,
 ): DOMMatrix {
     const canvas = this.canvas as HTMLCanvasElement
-    const state = STATES.get(canvas) || ensureState(canvas)
-    if (!state)
-        throw new DOMException('canvas is not [layoutsubtree]', 'InvalidStateError')
-    if (!state.children.has(el))
-        throw new DOMException('element is not a direct child of the canvas', 'InvalidStateError')
+    requireState(canvas, el)
 
     const bitmap = renderer.getCanvas(el)
     const cssSize = renderer.getCssSize(el)
@@ -132,30 +153,10 @@ function drawElementImage(
 
     this.drawImage(bitmap, dx, dy, dwGrid, dhGrid)
 
-    // M = T_origin^-1 · S^-1 · T_draw · S · T_origin
-    //
-    //   S       = scale(sx, sy)                 -- CSS px to grid px
-    //   T_draw  = CTM · translate(dx, dy)
-    //             · scale(dwGrid / (cssW*sx),
-    //                     dhGrid / (cssH*sy))   -- the transform used to draw
-    //   T_origin = translate(ox, oy)            -- the pivot
-    //
-    // For the default `dwGrid = cssW*sx`, `dhGrid = cssH*sy` case the
-    // inner `scale` degenerates to identity, so `T_draw = CTM · T`.
-    const ctm = this.getTransform()
-    const T_draw = ctm
+    const T_draw = this.getTransform()
         .translate(dx, dy)
         .scale(dwGrid / (cssW * sx), dhGrid / (cssH * sy))
-    const S = new DOMMatrix().scale(sx, sy)
-    const Sinv = new DOMMatrix().scale(1 / sx, 1 / sy)
-    const ox = cssW / 2
-    const oy = cssH / 2
-    const T_o = new DOMMatrix().translate(ox, oy)
-    const T_oi = new DOMMatrix().translate(-ox, -oy)
-
-    el.style.transformOrigin = `${ox}px ${oy}px`
-
-    return T_oi.multiply(Sinv).multiply(T_draw).multiply(S).multiply(T_o)
+    return computeElementTransform(el, T_draw, sx, sy, cssW, cssH)
 }
 
 function patchWebGLContext() {
@@ -287,31 +288,15 @@ function getElementTransform(
     drawTransform: DOMMatrix,
 ): DOMMatrix {
     const canvas = this
-    const state = STATES.get(canvas) || ensureState(canvas)
-    if (!state)
-        throw new DOMException('canvas is not [layoutsubtree]', 'InvalidStateError')
-    if (!state.children.has(element))
-        throw new DOMException('element is not a direct child of the canvas', 'InvalidStateError')
+    requireState(canvas, element)
 
     const cssSize = renderer.getCssSize(element)
     if (!cssSize)
         throw new DOMException('no snapshot recorded yet', 'InvalidStateError')
 
-    const cssW = cssSize.width
-    const cssH = cssSize.height
     const sx = canvas.width / Math.max(1, canvas.clientWidth)
     const sy = canvas.height / Math.max(1, canvas.clientHeight)
-
-    const S = new DOMMatrix().scale(sx, sy)
-    const Sinv = new DOMMatrix().scale(1 / sx, 1 / sy)
-    const ox = cssW / 2
-    const oy = cssH / 2
-    const T_o = new DOMMatrix().translate(ox, oy)
-    const T_oi = new DOMMatrix().translate(-ox, -oy)
-
-    element.style.transformOrigin = `${ox}px ${oy}px`
-
-    return T_oi.multiply(Sinv).multiply(drawTransform).multiply(S).multiply(T_o)
+    return computeElementTransform(element, drawTransform, sx, sy, cssSize.width, cssSize.height)
 }
 
 function patchCanvasElement() {
@@ -362,11 +347,7 @@ function patchCanvasElement() {
         configurable: true,
         writable: true,
         value: function (this: HTMLCanvasElement, element: HTMLElement) {
-            const state = STATES.get(this) || ensureState(this)
-            if (!state)
-                throw new DOMException('canvas is not [layoutsubtree]', 'InvalidStateError')
-            if (!state.children.has(element))
-                throw new DOMException('element is not a direct child of the canvas', 'InvalidStateError')
+            requireState(this, element)
             const canvas = renderer.getCanvas(element)
             if (!canvas)
                 throw new DOMException('no snapshot recorded yet', 'InvalidStateError')

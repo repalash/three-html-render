@@ -1,6 +1,6 @@
 {
   "name": "three-html-render",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "HTML-in-Canvas polyfill and Three.js integration for rendering live HTML as WebGL/WebGPU textures",
   "author": "repalash <palash@shaders.app>",

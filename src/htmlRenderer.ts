@@ -83,6 +83,9 @@ export class HtmlRenderer {
     }
 
     cleanup() {
+        this.entries.clear()
+        this.pageStylesCssPromise = null
+        dataUrlCache.clear()
         if (mirrorDiv) {
             mirrorDiv.remove()
             mirrorDiv = null
@@ -146,7 +149,7 @@ export class HtmlRenderer {
         const svg = (
             `<svg xmlns="http://www.w3.org/2000/svg"` +
             ` width="${cssW}" height="${cssH}" viewBox="0 0 ${cssW} ${cssH}">` +
-            `<style><![CDATA[${style}]]></style>` +
+            `<style><![CDATA[${style.replace(/]]>/g, ']]]]><![CDATA[>')}]]></style>` +
             `<foreignObject x="0" y="0" width="100%" height="100%">${innerXml}</foreignObject>` +
             `</svg>`
         )
@@ -173,26 +176,6 @@ export class HtmlRenderer {
             }
         }
         return svg
-
-        // todo - makes no difference
-        // const pxW = Math.ceil(cssW * dpr)
-        // const pxH = Math.ceil(cssH * dpr)
-        //
-        // // SVG width/height = device pixels (rasterization size)
-        // // foreignObject width/height = device pixels (Safari uses these for layout, ignoring viewBox)
-        // // CSS zoom scales content back to CSS pixel layout within the device-pixel foreignObject
-        // const needsZoom = dpr !== 1
-        // const zoomStyle = needsZoom ? ` style="zoom:${dpr}"` : ''
-        //
-        // return (
-        //     `<svg xmlns="http://www.w3.org/2000/svg"` +
-        //     ` width="${pxW}" height="${pxH}" viewBox="0 0 ${pxW} ${pxH}">` +
-        //     `<style><![CDATA[${style}]]></style>` +
-        //     `<foreignObject x="0" y="0" width="${pxW}" height="${pxH}">` +
-        //     `<div xmlns="http://www.w3.org/1999/xhtml"${zoomStyle}>${innerXml}</div>` +
-        //     `</foreignObject>` +
-        //     `</svg>`
-        // )
 
     }
 }
