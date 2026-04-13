@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AR HTML Panel — HTML-in-Canvas Demo</title>
+<script type="module">
+  import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
+  installHtmlInCanvasPolyfill();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: system-ui, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* ── AR overlay UI ── */
+  #ar-overlay {
+    display: none;
+    font-family: system-ui, sans-serif;
+  }
+  #ar-overlay.active { display: block; }
+
+  #place-btn {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 14px 32px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(74, 108, 247, 0.9);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    z-index: 100;
+  }
+  #place-btn:active { background: rgba(74, 108, 247, 0.7); }
+  #place-btn.placed { display: none; }
+
+  #ar-hint {
+    position: fixed;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.5);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    transition: opacity 0.5s;
+  }
+
+  /* ── Panel styles ── */
+  .ar-card {
+    width: 400px;
+    height: 520px;
+    padding: 28px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #1d1d1f;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 20px;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.3);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  }
+
+  .ar-card h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+    color: #1d1d1f;
+  }
+  .ar-card .subtitle {
+    font-size: 14px;
+    color: #86868b;
+    margin-bottom: 24px;
+  }
+
+  .ar-card .field { margin-bottom: 16px; }
+  .ar-card .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+    margin-bottom: 6px;
+  }
+  .ar-card .field input,
+  .ar-card .field select {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #1d1d1f;
+    background: #f5f5f7;
+    border: 1.5px solid #d2d2d7;
+    border-radius: 10px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.15s;
+  }
+  .ar-card .field input:focus,
+  .ar-card .field select:focus {
+    border-color: #4a6cf7;
+    box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.15);
+  }
+  .ar-card .field input::placeholder { color: #aaa; }
+
+  .ar-card .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    font-size: 14px;
+    color: #333;
+  }
+  .ar-card .toggle {
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: #d2d2d7;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: none;
+    padding: 0;
+  }
+  .ar-card .toggle.on { background: #4a6cf7; }
+  .ar-card .toggle::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .ar-card .toggle.on::after { transform: translateX(20px); }
+
+  .ar-card .submit-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 13px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: #4a6cf7;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: filter 0.15s;
+  }
+  .ar-card .submit-btn:hover { filter: brightness(1.1); }
+  .ar-card .submit-btn:active { filter: brightness(0.9); }
+
+  .ar-card .footer {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 12px;
+    color: #86868b;
+  }
+
+  /* Spinner */
+  .ar-card .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #34d399;
+  }
+  .mini-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(52,211,153,0.3);
+    border-top-color: #34d399;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- AR overlay (DOM Overlay root) -->
+<div id="ar-overlay">
+  <div id="ar-hint">Point at a surface, then tap Place</div>
+  <button id="place-btn">Place Panel</button>
+</div>
+
+<canvas id="canvas" layoutsubtree>
+  <div class="ar-card" id="ar-panel">
+    <h2>Quick Settings</h2>
+    <p class="subtitle">Configure your AR workspace</p>
+
+    <div class="status-row">
+      <div class="mini-spinner"></div>
+      <span>Connected to network</span>
+    </div>
+
+    <div class="field">
+      <label>Device Name</label>
+      <input type="text" placeholder="My Device" value="AR Workspace">
+    </div>
+    <div class="field">
+      <label>Environment</label>
+      <select>
+        <option>Production</option>
+        <option>Staging</option>
+        <option selected>Development</option>
+      </select>
+    </div>
+
+    <div class="toggle-row">
+      <span>Enable haptics</span>
+      <button class="toggle on" id="toggle-haptics"></button>
+    </div>
+    <div class="toggle-row">
+      <span>Auto-sync</span>
+      <button class="toggle" id="toggle-sync"></button>
+    </div>
+
+    <div class="field">
+      <label>Brightness</label>
+      <input type="range" min="0" max="100" value="70" style="width:100%">
+    </div>
+
+    <button class="submit-btn">Save Settings</button>
+    <p class="footer">HTML-in-Canvas Polyfill Demo</p>
+  </div>
+</canvas>
+
+<script type="module">
+import * as THREE from 'three';
+import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
+import { ThreeHTMLRenderer } from '/src/threeHTMLRenderer.ts';
+
+// ── Toggle buttons ──
+document.querySelectorAll('.toggle').forEach(btn => {
+  btn.addEventListener('click', () => btn.classList.toggle('on'));
+});
+
+// ── Scene setup ──
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.xr.enabled = true;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(1, 2, 1);
+scene.add(dirLight);
+
+// ── Panel mesh ──
+const panelMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.35, 0.455),
+  new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide })
+);
+panelMesh.visible = false;
+scene.add(panelMesh);
+
+// ── Reticle ──
+const reticle = new THREE.Mesh(
+  new THREE.RingGeometry(0.04, 0.05, 32).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0x4a6cf7 })
+);
+reticle.matrixAutoUpdate = false;
+reticle.visible = false;
+scene.add(reticle);
+
+// ── HTML renderer ──
+const htmlRenderer = new ThreeHTMLRenderer();
+htmlRenderer.connect(canvas, camera, renderer);
+const panelElement = document.getElementById('ar-panel');
+htmlRenderer.addObject(panelElement, panelMesh);
+
+// ── AR Button ──
+const arOverlay = document.getElementById('ar-overlay');
+const placeBtn = document.getElementById('place-btn');
+const arHint = document.getElementById('ar-hint');
+
+const arButton = ARButton.createButton(renderer, {
+  requiredFeatures: ['hit-test'],
+  optionalFeatures: ['dom-overlay'],
+  domOverlay: { root: arOverlay }
+});
+document.body.appendChild(arButton);
+
+renderer.xr.addEventListener('sessionstart', () => {
+  arOverlay.classList.add('active');
+});
+renderer.xr.addEventListener('sessionend', () => {
+  arOverlay.classList.remove('active');
+  panelMesh.visible = false;
+  reticle.visible = false;
+  placeBtn.classList.remove('placed');
+});
+
+// ── Hit test ──
+let hitTestSource = null;
+let hitTestSourceRequested = false;
+let placed = false;
+
+placeBtn.addEventListener('click', () => {
+  if (!reticle.visible) return;
+  panelMesh.position.setFromMatrixPosition(reticle.matrix);
+  panelMesh.position.y += 0.25;
+  // Face the camera
+  const camPos = new THREE.Vector3();
+  camera.getWorldPosition(camPos);
+  panelMesh.lookAt(camPos.x, panelMesh.position.y, camPos.z);
+  panelMesh.visible = true;
+  placed = true;
+  placeBtn.classList.add('placed');
+  arHint.style.opacity = '0';
+  reticle.visible = false;
+});
+
+// ── Resize ──
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Render loop ──
+renderer.setAnimationLoop((timestamp, frame) => {
+  // Hit test
+  if (frame && !placed) {
+    const session = renderer.xr.getSession();
+    if (session && !hitTestSourceRequested) {
+      session.requestReferenceSpace('viewer').then(refSpace => {
+        session.requestHitTestSource({ space: refSpace }).then(source => {
+          hitTestSource = source;
+        });
+      });
+      hitTestSourceRequested = true;
+    }
+
+    if (hitTestSource) {
+      const referenceSpace = renderer.xr.getReferenceSpace();
+      const results = frame.getHitTestResults(hitTestSource);
+      if (results.length > 0) {
+        const hit = results[0];
+        reticle.visible = true;
+        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+      } else {
+        reticle.visible = false;
+      }
+    }
+  }
+
+  // Update
+  canvas.requestPaint();
+  if (renderer.xr.isPresenting) {
+    // In AR, update overlay positioning for DOM interaction
+    htmlRenderer.update();
+  }
+  renderer.render(scene, camera);
+});
+
+// ── Non-AR fallback view ──
+if (!renderer.xr.isPresenting) {
+  camera.position.set(0, 0.3, 0.8);
+  panelMesh.position.set(0, 0.25, -0.5);
+  panelMesh.visible = true;
+  placed = true;
+}
+</script>
+</body>
+</html>

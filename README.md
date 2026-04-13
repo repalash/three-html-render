@@ -34,6 +34,9 @@ Polyfill for the [WICG HTML-in-Canvas](https://github.com/WICG/html-in-canvas) p
 | [complex-text](examples/complex-text.html)              | [Live](https://repalash.com/three-html-render/examples/complex-text.html)              | Rich text rendering                                                   |
 | [pie-chart](examples/pie-chart.html)                    | [Live](https://repalash.com/three-html-render/examples/pie-chart.html)                 | SVG/HTML chart on 3D surface                                          |
 | [jelly-slider](examples/webgpu-jelly-slider/index.html) | [Live](https://repalash.com/three-html-render/examples/webgpu-jelly-slider/index.html) | WebGPU slider with `copyElementImageToTexture` (requires WebGPU)      |
+| [focus-ring](examples/focus-ring.html)                  | [Live](https://repalash.com/three-html-render/examples/focus-ring.html)                | WebGL focus glow shader with interactive form                         |
+| [webxr-vr](examples/webxr-vr.html)                     | [Live](https://repalash.com/three-html-render/examples/webxr-vr.html)                  | VR floating dashboards with glass panels (requires WebXR)             |
+| [webxr-ar](examples/webxr-ar.html)                     | [Live](https://repalash.com/three-html-render/examples/webxr-ar.html)                  | AR panel placed on real-world surface (requires ARCore)               |
 
 ## Install
 
@@ -251,7 +254,7 @@ Chrome and Safari extensions are included to polyfill any page. See [extension/R
 
 ```bash
 npm run dev              # Start Vite dev server
-npm run build            # Build library (ESM + CJS + .d.ts)
+npm run build            # Build library (ESM + IIFE + .d.ts)
 npm run build:demo       # Build demo site (for GitHub Pages)
 npm run build:extension  # Build browser extension
 npm run typecheck        # Run TypeScript type checking

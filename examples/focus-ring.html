@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloudflare Focus Glow — HTML-in-Canvas Demo</title>
+<script type="module">
+  import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
+  installHtmlInCanvasPolyfill();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    color: #e8e8e8;
+  }
+
+
+  .hint {
+    margin-top: 20px;
+    font-size: 13px;
+    color: #555;
+  }
+  .hint kbd {
+    display: inline-block;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 11px;
+    color: #777;
+  }
+
+  canvas {
+    width: 460px;
+    height: 620px;
+    border-radius: 16px;
+  }
+
+  canvas > * {
+    pointer-events: auto;
+  }
+
+  /* ─── Form card (canvas child) ─── */
+  .form-card {
+    width: 460px;
+    height: 620px;
+    padding: 36px 36px 28px;
+    font-family: inherit;
+    color: #e8e8e8;
+  }
+
+  .cf-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .cf-logo svg { flex-shrink: 0; }
+  .cf-logo span {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #e8e8e8;
+  }
+
+  .form-card h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+    color: #fff;
+  }
+  .form-card .sub {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .field {
+    margin-bottom: 16px;
+  }
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #aaa;
+    margin-bottom: 10px;
+    transition: color 0.2s;
+  }
+  .field:focus-within label {
+    color: #fff;
+  }
+  .field input,
+  .field select {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #e8e8e8;
+    background: #1a1a1a;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .field select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+  .field input:focus,
+  .field select:focus {
+    border-color: rgba(246, 130, 31, 0.5);
+  }
+  .field input::placeholder {
+    color: #555;
+  }
+
+  .row {
+    display: flex;
+    gap: 12px;
+  }
+  .row .field { flex: 1; }
+
+  .field-hint {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  .input-suffix {
+    display: flex;
+    align-items: stretch;
+  }
+  .input-suffix input {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: none;
+    flex: 1;
+  }
+  .input-suffix .suffix {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 13px;
+    color: #666;
+    background: #141414;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .submit-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    background: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.15s;
+  }
+
+  .footer-text {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+  }
+  .footer-text a {
+    color: #f6821f;
+    text-decoration: none;
+  }
+</style>
+</head>
+<body class="body-dv">
+
+<canvas id="canvas" width="920" height="1240" layoutsubtree>
+  <div class="form-card" id="formCard">
+
+    <div class="cf-logo">
+      <svg width="96" viewBox="0 0 49 22" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cloudflare logo"><path d="M33.204 20.4C33.3649 19.9741 33.4217 19.5159 33.3695 19.0636C33.3173 18.6113 33.1577 18.1781 32.904 17.8C32.6435 17.4876 32.3239 17.2297 31.9636 17.0409C31.6032 16.8522 31.2092 16.7363 30.804 16.7L13.404 16.5C13.304 16.5 13.204 16.4 13.104 16.4C13.0808 16.3825 13.0618 16.3599 13.0488 16.3339C13.0358 16.3078 13.029 16.2791 13.029 16.25C13.029 16.2209 13.0358 16.1922 13.0488 16.1662C13.0618 16.1401 13.0808 16.1175 13.104 16.1C13.204 15.9 13.304 15.8 13.504 15.8L31.004 15.6C32.115 15.4767 33.1731 15.0597 34.0695 14.3918C34.9659 13.7239 35.6681 12.8293 36.104 11.8L37.104 9.20002C37.104 9.10002 37.204 9.00001 37.104 8.90001C36.5604 6.47843 35.2411 4.30052 33.3466 2.69721C31.4521 1.09391 29.086 0.152865 26.6079 0.0170769C24.1298 -0.118712 21.675 0.558179 19.6167 1.94489C17.5584 3.33161 16.009 5.35233 15.204 7.70002C14.159 6.95365 12.8843 6.59957 11.604 6.70002C10.4291 6.83102 9.33369 7.35777 8.49774 8.19372C7.66179 9.02966 7.13505 10.1251 7.00404 11.3C6.93745 11.9014 6.97125 12.5097 7.10404 13.1C5.20298 13.1526 3.39743 13.9448 2.07147 15.3081C0.745511 16.6714 0.00377461 18.4982 0.00403983 20.4C-0.0123708 20.7695 0.0212659 21.1395 0.104038 21.5C0.10863 21.5781 0.141713 21.6517 0.19701 21.707C0.252307 21.7623 0.325975 21.7954 0.404041 21.8H32.504C32.704 21.8 32.904 21.7 32.904 21.5L33.204 20.4Z" fill="#F48120"/><path d="M38.704 9.20002H38.204C38.104 9.20002 38.004 9.30001 37.904 9.40001L37.204 11.8C37.0431 12.2259 36.9864 12.6841 37.0386 13.1364C37.0908 13.5887 37.2504 14.0219 37.504 14.4C37.7646 14.7124 38.0842 14.9704 38.4445 15.1591C38.8049 15.3479 39.1989 15.4637 39.604 15.5L43.304 15.7C43.404 15.7 43.504 15.8 43.604 15.8C43.6273 15.8175 43.6462 15.8401 43.6592 15.8662C43.6723 15.8922 43.679 15.9209 43.679 15.95C43.679 15.9791 43.6723 16.0078 43.6592 16.0339C43.6462 16.0599 43.6273 16.0826 43.604 16.1C43.504 16.3 43.404 16.4 43.204 16.4L39.404 16.6C38.293 16.7233 37.2349 17.1403 36.3386 17.8082C35.4422 18.4761 34.74 19.3707 34.304 20.4L34.104 21.3C34.004 21.4 34.104 21.6 34.304 21.6H47.504C47.5448 21.6058 47.5863 21.6021 47.6254 21.5891C47.6644 21.5761 47.6999 21.5541 47.729 21.525C47.7581 21.4959 47.7801 21.4604 47.7931 21.4214C47.8061 21.3823 47.8099 21.3408 47.804 21.3C48.0421 20.4527 48.1764 19.5797 48.204 18.7C48.1882 16.1854 47.1822 13.7782 45.404 12C43.6259 10.2218 41.2187 9.21587 38.704 9.20002Z" fill="#FAAD3F"/></svg>
+    </div>
+
+    <h2>Create a Worker</h2>
+    <p class="sub">Deploy serverless code instantly across Cloudflare's <br />global network.</p>
+
+    <div class="field">
+      <label for="f-name">Name</label>
+      <div class="input-suffix focusable" id="name-wrapper">
+        <input type="text" id="f-name" placeholder="my-api">
+        <span class="suffix">.workers.dev</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="f-starter">Starter template</label>
+      <select id="f-starter" class="focusable">
+        <option>Hello World</option>
+        <option>Router (itty-router)</option>
+        <option>Scheduled (Cron Trigger)</option>
+        <option>Queue Consumer</option>
+        <option>Durable Object Counter</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="f-compat">Compatibility date</label>
+      <input type="text" id="f-compat" class="focusable" value="2026-04-02">
+    </div>
+
+    <button type="submit" class="submit-btn focusable">Deploy</button>
+
+    <p class="footer-text">Or connect a <a href="#">Git repository</a> for CI/CD</p>
+  </div>
+</canvas>
+
+
+<script>
+const canvas = document.getElementById('canvas');
+const formCard = document.getElementById('formCard');
+const gl = canvas.getContext('webgl2', { alpha: false });
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+function link(vsSrc, fsSrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  return p;
+}
+
+const VS = `#version 300 es
+in vec2 a_pos;
+out vec2 v_uv;
+void main() {
+  v_uv = vec2(a_pos.x * 0.5 + 0.5, 0.5 - a_pos.y * 0.5);
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+const FS = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_form;
+uniform vec2 u_resolution;
+uniform float u_time;
+
+uniform vec2 u_focusPos;
+uniform vec2 u_focusSize;
+uniform float u_focusActive;
+uniform float u_focusRadius;
+uniform vec2 u_mouse; // cursor in UV space
+
+float sdRoundBox(vec2 p, vec2 b, float r) {
+  vec2 q = abs(p) - b + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1, 0)), f.x),
+    mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x),
+    f.y
+  );
+}
+
+void main() {
+  vec2 uv = v_uv;
+  vec4 form = texture(u_form, uv);
+
+  // ── Background: dark with subtle dot grid ──
+  vec3 bgColor = vec3(0.067); // #111
+
+  // Dot grid pattern — like the CF site
+  vec2 pxCoord = uv * u_resolution;
+  float dotSpacing = 14.0;
+  vec2 gridPos = mod(pxCoord, dotSpacing);
+  float dotDist = length(gridPos - dotSpacing * 0.5);
+  float dotVal = 1.0 - smoothstep(0.6, 1.0, dotDist);
+  bgColor += dotVal * 0.04; // light dots on dark bg
+
+  // ── Cursor illumination on dots ──
+  float cursorDist = length((uv - u_mouse) * vec2(u_resolution.x / u_resolution.y, 1.0));
+  float cursorLight = exp(-cursorDist * cursorDist * 12.0) * 0.12;
+  bgColor += dotVal * cursorLight * vec3(1.0, 0.85, 0.6);
+
+  // ── Build glow on the background FIRST, then composite form on top ──
+  vec3 color = bgColor;
+
+  // ── Focus glow (rendered onto bg, before form) ──
+  if (u_focusActive > 0.01) {
+    vec2 aspect = vec2(u_resolution.x / u_resolution.y, 1.0);
+    vec2 p = (uv - u_focusPos) * aspect;
+    vec2 sz = u_focusSize * aspect;
+    float r = u_focusRadius * aspect.x;
+
+    float d = sdRoundBox(p, sz, r);
+    float pxScale = u_resolution.y;
+    float dPx = d * pxScale;
+
+    // ── Cloudflare orange palette ──
+    vec3 coreOrange  = vec3(0.965, 0.510, 0.122);  // #f6821f
+    vec3 goldenAmber = vec3(0.984, 0.678, 0.255);  // #fbad41
+    vec3 hotOrange   = vec3(1.000, 0.400, 0.200);  // #ff6633
+    vec3 deepEmber   = vec3(0.800, 0.300, 0.080);  // deep warm
+
+    // Animated color — faster, more movement along perimeter
+    float angle = atan(p.y, p.x);
+    float phase = angle + u_time * 1.6;
+
+    float t1 = sin(phase) * 0.5 + 0.5;
+    float t2 = sin(phase * 1.3 + 2.0) * 0.5 + 0.5;
+    float t3 = sin(phase * 0.5 - u_time * 0.7) * 0.5 + 0.5;
+    vec3 glowColor = mix(coreOrange, goldenAmber, t1);
+    glowColor = mix(glowColor, hotOrange, t2 * 0.4);
+    glowColor = mix(glowColor, goldenAmber, t3 * 0.2);
+
+    // Animated shimmer — more visible, moves faster
+    float shimmer = noise(uv * 40.0 + u_time * 1.2) * 0.3 + 0.85;
+    shimmer += noise(uv * 80.0 - u_time * 0.9) * 0.15;
+
+    // ── Glow layers — bigger, brighter ──
+    float atmoGlow = smoothstep(100.0, 0.0, dPx) * 0.08;
+    float outerGlow = smoothstep(50.0, 0.0, dPx) * 0.25;
+    float midGlow = smoothstep(20.0, 0.0, dPx) * 0.4;
+    float ring = smoothstep(3.0, 0.3, abs(dPx)) * 0.85;
+
+    float totalGlow = (atmoGlow + outerGlow + midGlow + ring) * u_focusActive * shimmer;
+
+    vec3 outerColor = deepEmber * 0.8;
+    vec3 innerColor = glowColor;
+    float mixT = smoothstep(40.0, 0.0, dPx);
+    vec3 finalGlow = mix(outerColor, innerColor, mixT);
+
+    // Additive glow onto background
+    color += finalGlow * totalGlow;
+
+    // Warm light cast on dots — wider, stronger
+    float dotWarmth = smoothstep(80.0, 0.0, dPx) * dotVal * 0.7 * u_focusActive;
+    color += coreOrange * dotWarmth;
+  }
+
+  // ── Fade unfocused borders: distant fields' borders dim toward invisible ──
+  vec3 formColor = form.rgb;
+  if (u_focusActive > 0.01) {
+    vec2 aspect = vec2(u_resolution.x / u_resolution.y, 1.0);
+    vec2 p = (uv - u_focusPos) * aspect;
+    vec2 sz = u_focusSize * aspect;
+    float r = u_focusRadius * aspect.x;
+    float d = sdRoundBox(p, sz, r);
+    float dPx2 = d * u_resolution.y;
+
+    // How far from the focused element (0 = close, 1 = far)
+    float farness = smoothstep(30.0, 150.0, dPx2) * u_focusActive;
+
+    // Detect border pixels: they're brighter than the dark bg (#1a1a1a)
+    // but dimmer than text. Borders are ~rgba(255,255,255,0.1) = ~0.077 lum
+    float lum = dot(formColor, vec3(0.2126, 0.7152, 0.0722));
+    float isBorder = smoothstep(0.05, 0.09, lum) * (1.0 - smoothstep(0.09, 0.15, lum));
+
+    // Dim borders toward the background color
+    formColor = mix(formColor, vec3(0.067), farness * isBorder * 0.8);
+  }
+
+  // ── Composite form on TOP of the glowing background ──
+  color = mix(color, formColor, form.a);
+
+  fragColor = vec4(color, 1.0);
+}`;
+
+const prog = link(VS, FS);
+
+const vao = gl.createVertexArray();
+gl.bindVertexArray(vao);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+gl.useProgram(prog);
+const U = {};
+['u_form','u_resolution','u_time','u_focusPos','u_focusSize','u_focusActive','u_focusRadius','u_mouse']
+  .forEach(n => U[n] = gl.getUniformLocation(prog, n));
+
+// ─── Focus tracking with spring physics ───
+const focus = {
+  cx: 0.5, cy: 0.3, hw: 0.3, hh: 0.03, active: 0, radius: 0.01,
+  tx: 0.5, ty: 0.3, thw: 0.3, thh: 0.03, tactive: 0, tradius: 0.01,
+  vx: 0, vy: 0, vw: 0, vh: 0, vr: 0,
+};
+
+let mouseUV = [0.5, 0.5];
+canvas.addEventListener('mousemove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouseUV = [
+    (e.clientX - r.left) / r.width,
+    (e.clientY - r.top) / r.height
+  ];
+});
+
+const SPRING = 0.18;
+const DAMP = 0.65;
+let hasHadFirstFocus = false;
+
+function springStep() {
+  focus.vx += (focus.tx - focus.cx) * SPRING;
+  focus.vy += (focus.ty - focus.cy) * SPRING;
+  focus.vw += (focus.thw - focus.hw) * SPRING;
+  focus.vh += (focus.thh - focus.hh) * SPRING;
+  focus.vr += (focus.tradius - focus.radius) * SPRING;
+
+  focus.vx *= DAMP; focus.vy *= DAMP;
+  focus.vw *= DAMP; focus.vh *= DAMP;
+  focus.vr *= DAMP;
+
+  focus.cx += focus.vx; focus.cy += focus.vy;
+  focus.hw += focus.vw; focus.hh += focus.vh;
+  focus.radius += focus.vr;
+
+  focus.active += (focus.tactive - focus.active) * 0.12;
+}
+
+function updateFocusTarget(el) {
+  if (!el) { focus.tactive = 0; return; }
+
+  const cRect = canvas.getBoundingClientRect();
+  const eRect = el.getBoundingClientRect();
+
+  // Use the canvas backing-to-CSS ratio so positions stay correct at any DPR
+  const scaleX = canvas.width / cRect.width;
+  const scaleY = canvas.height / cRect.height;
+
+  // Element center in canvas backing pixels
+  const cx = ((eRect.left + eRect.right) / 2 - cRect.left) * scaleX;
+  const cy = ((eRect.top + eRect.bottom) / 2 - cRect.top) * scaleY;
+  const pad = 5;
+  const hw = (eRect.width / 2 + pad) * scaleX;
+  const hh = (eRect.height / 2 + pad) * scaleY;
+
+  // Convert to UV (0–1)
+  focus.tx = cx / canvas.width;
+  focus.ty = cy / canvas.height;
+  focus.thw = hw / canvas.width;
+  focus.thh = hh / canvas.height;
+  focus.tactive = 1;
+  focus.tradius = (8 * scaleX) / canvas.width;
+
+  // First focus: snap to position instantly, don't spring from nowhere
+  if (!hasHadFirstFocus) {
+    hasHadFirstFocus = true;
+    focus.cx = focus.tx;
+    focus.cy = focus.ty;
+    focus.hw = focus.thw;
+    focus.hh = focus.thh;
+    focus.radius = focus.tradius;
+    focus.vx = focus.vy = focus.vw = focus.vh = focus.vr = 0;
+  }
+}
+
+const focusables = document.querySelectorAll('.focusable');
+focusables.forEach(el => {
+  // For wrapper elements (like input-suffix), listen for focusin/focusout
+  // so the glow targets the wrapper, not the inner input
+  const isWrapper = el.tagName !== 'INPUT' && el.tagName !== 'SELECT' && el.tagName !== 'BUTTON';
+  if (isWrapper) {
+    el.addEventListener('focusin', () => updateFocusTarget(el));
+    el.addEventListener('focusout', (e) => {
+      // Only deactivate if focus left the wrapper entirely
+      requestAnimationFrame(() => {
+        if (!el.contains(document.activeElement)) {
+          const a = document.activeElement;
+          if (!a || !a.closest('.focusable')) focus.tactive = 0;
+        }
+      });
+    });
+  } else {
+    el.addEventListener('focus', () => updateFocusTarget(el));
+    el.addEventListener('blur', () => {
+      requestAnimationFrame(() => {
+        const a = document.activeElement;
+        if (!a || !a.closest('.focusable')) focus.tactive = 0;
+      });
+    });
+  }
+});
+
+canvas.onpaint = () => {
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texElementImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, formCard);
+};
+
+const t0 = performance.now();
+function render() {
+  const time = (performance.now() - t0) / 1000;
+  springStep();
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.useProgram(prog);
+  gl.bindVertexArray(vao);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(U.u_form, 0);
+
+  gl.uniform2f(U.u_resolution, canvas.width, canvas.height);
+  gl.uniform1f(U.u_time, time);
+  gl.uniform2f(U.u_focusPos, focus.cx, focus.cy);
+  gl.uniform2f(U.u_focusSize, focus.hw, focus.hh);
+  gl.uniform1f(U.u_focusActive, focus.active);
+  gl.uniform1f(U.u_focusRadius, focus.radius);
+  gl.uniform2f(U.u_mouse, mouseUV[0], mouseUV[1]);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // canvas.requestPaint();
+  requestAnimationFrame(render);
+}
+
+canvas.requestPaint();
+requestAnimationFrame(render);
+
+const obs = new ResizeObserver(([entry]) => {
+  const dpr = entry.devicePixelContentBoxSize;
+  if (dpr) {
+    canvas.width = dpr[0].inlineSize;
+    canvas.height = dpr[0].blockSize;
+  }
+});
+obs.observe(canvas, { box: 'device-pixel-content-box' });
+</script>
+</body>
+</html>

@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VR Floating Dashboards — HTML-in-Canvas Demo</title>
+<script type="module">
+  import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
+  installHtmlInCanvasPolyfill();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #111118; font-family: system-ui, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* ── Panel shared styles ── */
+  .panel {
+    width: 480px;
+    height: 640px;
+    padding: 32px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #e8e8e8;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .panel h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    color: #fff;
+  }
+
+  /* ── Panel 1: Form ── */
+  .form-panel { background: rgba(20, 20, 35, 0.85); }
+
+  .form-panel .field { margin-bottom: 16px; }
+  .form-panel .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #888;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .form-panel .field input,
+  .form-panel .field select {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #e8e8e8;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .form-panel .field input:focus,
+  .form-panel .field select:focus {
+    border-color: rgba(100, 140, 255, 0.5);
+    box-shadow: 0 0 0 3px rgba(100, 140, 255, 0.15);
+  }
+  .form-panel .field input::placeholder { color: #555; }
+
+  .form-panel .submit-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: linear-gradient(135deg, #4a6cf7, #6366f1);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: filter 0.15s;
+  }
+  .form-panel .submit-btn:hover {
+    filter: brightness(1.15);
+  }
+  .form-panel .submit-btn:active {
+    filter: brightness(0.9);
+  }
+
+  /* ── Panel 2: Chart ── */
+  .chart-panel { background: rgba(20, 20, 35, 0.85); }
+
+  .pie-chart {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    margin: 20px auto;
+    background: conic-gradient(
+      #4a6cf7 0% 35%,
+      #f472b6 35% 55%,
+      #34d399 55% 75%,
+      #fbbf24 75% 90%,
+      #a78bfa 90% 100%
+    );
+    animation: spin-chart 20s linear infinite;
+  }
+  @keyframes spin-chart { to { transform: rotate(360deg); } }
+
+  .chart-legend { margin-top: 24px; }
+  .chart-legend .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #aaa;
+  }
+  .chart-legend .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Panel 3: Animated text ── */
+  .anim-panel { background: rgba(20, 20, 35, 0.85); }
+
+  .gradient-text {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #4a6cf7, #f472b6, #34d399, #fbbf24, #4a6cf7);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradient-shift 3s linear infinite;
+    margin-bottom: 24px;
+  }
+  @keyframes gradient-shift { to { background-position: -200% 0; } }
+
+  .spinner-row {
+    display: flex;
+    gap: 24px;
+    margin: 20px 0;
+    align-items: center;
+  }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #4a6cf7;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  .spinner:nth-child(2) { border-top-color: #f472b6; animation-duration: 0.8s; }
+  .spinner:nth-child(3) { border-top-color: #34d399; animation-duration: 1.2s; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pulse-bar {
+    height: 8px;
+    border-radius: 4px;
+    margin: 12px 0;
+    animation: pulse-width 2s ease-in-out infinite;
+  }
+  .pulse-bar:nth-child(1) { background: #4a6cf7; }
+  .pulse-bar:nth-child(2) { background: #f472b6; animation-delay: 0.3s; }
+  .pulse-bar:nth-child(3) { background: #34d399; animation-delay: 0.6s; }
+  @keyframes pulse-width {
+    0%, 100% { width: 30%; }
+    50% { width: 90%; }
+  }
+
+  .typing-text::after {
+    content: '|';
+    animation: blink 1s step-end infinite;
+    color: #4a6cf7;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── Panel 4: Scrollable ── */
+  .scroll-panel {
+    background: rgba(20, 20, 35, 0.85);
+    overflow-y: auto;
+  }
+  .scroll-panel p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 16px;
+  }
+  .scroll-panel a { color: #4a6cf7; text-decoration: none; }
+  .scroll-panel a:hover { text-decoration: underline; }
+  .scroll-panel img {
+    width: 100%;
+    border-radius: 8px;
+    margin: 12px 0;
+  }
+  .scroll-panel .tag {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 20px;
+    margin: 4px;
+    background: rgba(255,255,255,0.08);
+    color: #aaa;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas" layoutsubtree>
+  <!-- Panel 1: Interactive Form -->
+  <div class="panel form-panel" id="panel-form">
+    <h2>Create Account</h2>
+    <div class="field">
+      <label>Full Name</label>
+      <input type="text" placeholder="Jane Doe">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="text" placeholder="jane@example.com">
+    </div>
+    <div class="field">
+      <label>Role</label>
+      <select>
+        <option>Designer</option>
+        <option>Developer</option>
+        <option>Product Manager</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Experience</label>
+      <input type="range" min="0" max="10" value="5" style="width:100%">
+    </div>
+    <button class="submit-btn">Get Started</button>
+  </div>
+
+  <!-- Panel 2: Pie Chart -->
+  <div class="panel chart-panel" id="panel-chart">
+    <h2>Usage Analytics</h2>
+    <div class="pie-chart"></div>
+    <div class="chart-legend">
+      <div class="item"><span class="dot" style="background:#4a6cf7"></span>API Calls (35%)</div>
+      <div class="item"><span class="dot" style="background:#f472b6"></span>Storage (20%)</div>
+      <div class="item"><span class="dot" style="background:#34d399"></span>Compute (20%)</div>
+      <div class="item"><span class="dot" style="background:#fbbf24"></span>Bandwidth (15%)</div>
+      <div class="item"><span class="dot" style="background:#a78bfa"></span>Other (10%)</div>
+    </div>
+  </div>
+
+  <!-- Panel 3: CSS Animations -->
+  <div class="panel anim-panel" id="panel-anim">
+    <h2>Live Animations</h2>
+    <div class="gradient-text">HTML in Canvas</div>
+    <div class="spinner-row">
+      <div class="spinner"></div>
+      <div class="spinner"></div>
+      <div class="spinner"></div>
+      <span style="color:#888;font-size:13px">Processing...</span>
+    </div>
+    <div style="margin-top:24px">
+      <div class="pulse-bar"></div>
+      <div class="pulse-bar"></div>
+      <div class="pulse-bar"></div>
+    </div>
+    <p class="typing-text" style="margin-top:24px;color:#888;font-size:14px">
+      Real CSS animations running in WebXR
+    </p>
+  </div>
+
+  <!-- Panel 4: Scrollable Content -->
+  <div class="panel scroll-panel" id="panel-scroll">
+    <h2>Documentation</h2>
+    <p>The <a href="#">HTML-in-Canvas API</a> lets you render live, interactive HTML directly into canvas contexts — 2D, WebGL, and WebGPU.</p>
+    <p>Every element is a real DOM node with full CSS support: pseudo-classes like <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">:hover</code>, animations, transitions, and layout.</p>
+    <div>
+      <span class="tag">WebGL</span>
+      <span class="tag">WebGPU</span>
+      <span class="tag">Canvas 2D</span>
+      <span class="tag">WebXR</span>
+      <span class="tag">Three.js</span>
+    </div>
+    <p style="margin-top:16px">Text selection, caret rendering, scrolling — all work natively because the content IS HTML, not a screenshot of it.</p>
+    <p>The polyfill uses SVG foreignObject rasterization to bring the API to all browsers today. When native support lands, the polyfill steps aside automatically.</p>
+    <p>Works with Three.js, React Three Fiber, and vanilla WebGL/WebGPU. No framework lock-in.</p>
+    <p>Try scrolling this panel with the VR controller trigger.</p>
+  </div>
+</canvas>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
+import { InteractiveGroup } from 'three/examples/jsm/interactive/InteractiveGroup.js';
+import { ThreeHTMLRenderer } from '/src/threeHTMLRenderer.ts';
+
+// ── Scene setup ──
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x111118);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.xr.enabled = true;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.6, 3);
+
+// ── Lighting ──
+scene.add(new THREE.AmbientLight(0x404060, 0.4));
+const pointLight = new THREE.PointLight(0x6688ff, 3, 15);
+pointLight.position.set(0, 3, 0);
+scene.add(pointLight);
+const pointLight2 = new THREE.PointLight(0xff6644, 1.5, 10);
+pointLight2.position.set(2, 2, -2);
+scene.add(pointLight2);
+
+// ── Floor ──
+const floorGeo = new THREE.PlaneGeometry(20, 20);
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x111118,
+  roughness: 0.8,
+  metalness: 0.2,
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = 0;
+scene.add(floor);
+
+// ── Grid on floor ──
+const gridHelper = new THREE.GridHelper(20, 40, 0x222244, 0x1a1a2e);
+gridHelper.position.y = 0.01;
+scene.add(gridHelper);
+
+// ── InteractiveGroup ──
+const group = new InteractiveGroup();
+scene.add(group);
+
+// Desktop mouse interaction
+group.listenToPointerEvents(renderer, camera);
+
+// ── Glass panel creation ──
+function createGlassPanel(w, h) {
+  const geo = new THREE.PlaneGeometry(w, h);
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0,
+    roughness: 0.15,
+    transmission: 0.92,
+    ior: 1.5,
+    thickness: 0.3,
+    transparent: true,
+    side: THREE.DoubleSide,
+    clearcoat: 0.5,
+    clearcoatRoughness: 0.2,
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+// ── HTML renderer ──
+const htmlRenderer = new ThreeHTMLRenderer();
+htmlRenderer.connect(canvas, camera, renderer);
+
+// ── Place panels in semicircle ──
+const panelElements = [
+  document.getElementById('panel-form'),
+  document.getElementById('panel-chart'),
+  document.getElementById('panel-anim'),
+  document.getElementById('panel-scroll'),
+];
+
+const RADIUS = 3;
+const PANEL_Y = 1.5;
+const panelMeshes = [];
+
+panelElements.forEach((el, i) => {
+  const angle = (i - 1.5) * 0.45; // spread around center
+  const mesh = createGlassPanel(0.7, 0.93);
+
+  mesh.position.set(
+    Math.sin(angle) * RADIUS,
+    PANEL_Y,
+    -Math.cos(angle) * RADIUS
+  );
+  mesh.lookAt(0, PANEL_Y, 0);
+
+  group.add(mesh);
+  htmlRenderer.addObject(el, mesh);
+  panelMeshes.push({ mesh, element: el });
+});
+
+// ── Event bridge: Three.js mesh events → DOM ──
+function bridgeEventsToDOM(mesh, htmlElement) {
+  const eventTypes = ['click', 'mousedown', 'mouseup', 'mousemove'];
+
+  for (const type of eventTypes) {
+    mesh.addEventListener(type, (event) => {
+      if (!event.data) return;
+      const uvX = event.data.x;
+      const uvY = event.data.y;
+      const cssX = uvX * htmlElement.offsetWidth;
+      const cssY = uvY * htmlElement.offsetHeight;
+
+      const rect = htmlElement.getBoundingClientRect();
+      const clientX = rect.left + cssX;
+      const clientY = rect.top + cssY;
+
+      const target = document.elementFromPoint(clientX, clientY) || htmlElement;
+      target.dispatchEvent(new MouseEvent(type, {
+        clientX, clientY, bubbles: true, cancelable: true, view: window
+      }));
+    });
+  }
+}
+
+panelMeshes.forEach(({ mesh, element }) => {
+  bridgeEventsToDOM(mesh, element);
+});
+
+// ── XR Controllers ──
+const controllerModelFactory = new XRControllerModelFactory();
+
+function setupController(index) {
+  const controller = renderer.xr.getController(index);
+  scene.add(controller);
+
+  // Laser pointer
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, -5),
+  ]);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x4a6cf7, transparent: true, opacity: 0.6 });
+  controller.add(new THREE.Line(lineGeo, lineMat));
+
+  // Controller model
+  const grip = renderer.xr.getControllerGrip(index);
+  grip.add(controllerModelFactory.createControllerModel(grip));
+  scene.add(grip);
+
+  // Register with InteractiveGroup
+  group.listenToXRControllerEvents(controller);
+
+  return controller;
+}
+
+const controller0 = setupController(0);
+const controller1 = setupController(1);
+
+// ── OrbitControls (desktop fallback) ──
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.5, 0);
+controls.update();
+
+renderer.xr.addEventListener('sessionstart', () => { controls.enabled = false; });
+renderer.xr.addEventListener('sessionend', () => { controls.enabled = true; });
+
+// ── VR Button ──
+document.body.appendChild(VRButton.createButton(renderer));
+
+// ── Resize ──
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Render loop ──
+renderer.setAnimationLoop(() => {
+  canvas.requestPaint();
+  if (!renderer.xr.isPresenting) {
+    controls.update();
+    htmlRenderer.update();
+  }
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
