@@ -137,8 +137,15 @@
   }
 
   const canvas = document.querySelector('#gl-canvas');
-  canvas.onpaint = () => { if (!render_context) main(); };
+  canvas.onpaint = () => {
+    if (!render_context) { main(); return; }
+    const gl = render_context.gl;
+    gl.bindTexture(gl.TEXTURE_2D, render_context.texture);
+    gl.texElementImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, window.draw_element);
+  };
   canvas.requestPaint();
+  document.fonts.ready.then(() => canvas.requestPaint());
+  window.addEventListener('load', () => canvas.requestPaint());
 
   const observer = new ResizeObserver(([entry]) => {
     if (entry.devicePixelContentBoxSize && entry.devicePixelContentBoxSize[0]) {

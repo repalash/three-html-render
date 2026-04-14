@@ -285,6 +285,8 @@
     render_context.texture = newTex;
   };
   canvas.requestPaint();
+  document.fonts.ready.then(() => canvas.requestPaint());
+  window.addEventListener('load', () => canvas.requestPaint());
 
   const observer = new ResizeObserver(([entry]) => {
     if (entry.devicePixelContentBoxSize && entry.devicePixelContentBoxSize[0]) {
