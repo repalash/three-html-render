@@ -35,8 +35,9 @@ Polyfill for the [WICG HTML-in-Canvas](https://github.com/WICG/html-in-canvas) p
 | [pie-chart](examples/pie-chart.html)                    | [Live](https://repalash.com/three-html-render/examples/pie-chart.html)                 | SVG/HTML chart on 3D surface                                          |
 | [jelly-slider](examples/webgpu-jelly-slider/index.html) | [Live](https://repalash.com/three-html-render/examples/webgpu-jelly-slider/index.html) | WebGPU slider with `copyElementImageToTexture` (requires WebGPU)      |
 | [focus-ring](examples/focus-ring.html)                  | [Live](https://repalash.com/three-html-render/examples/focus-ring.html)                | WebGL focus glow shader with interactive form                         |
-| [webxr-vr](examples/webxr-vr.html)                     | [Live](https://repalash.com/three-html-render/examples/webxr-vr.html)                  | VR floating dashboards with glass panels (requires WebXR)             |
-| [webxr-ar](examples/webxr-ar.html)                     | [Live](https://repalash.com/three-html-render/examples/webxr-ar.html)                  | AR panel placed on real-world surface (requires ARCore)               |
+
+[//]: # (| [webxr-vr]&#40;examples/webxr-vr.html&#41;                     | [Live]&#40;https://repalash.com/three-html-render/examples/webxr-vr.html&#41;                  | VR floating dashboards with glass panels &#40;requires WebXR&#41;             |)
+[//]: # (| [webxr-ar]&#40;examples/webxr-ar.html&#41;                     | [Live]&#40;https://repalash.com/three-html-render/examples/webxr-ar.html&#41;                  | AR panel placed on real-world surface &#40;requires ARCore&#41;               |)
 
 ## Install
 
