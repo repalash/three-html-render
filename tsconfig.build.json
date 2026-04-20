@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "exclude": ["src/vite-env.d.ts", "src/codrops-sample.js", "src/CSS3DRenderer.js"]
+  "exclude": ["src/vite-env.d.ts", "src/codrops-sample.js"]
 }

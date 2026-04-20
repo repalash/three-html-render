@@ -1,372 +1,456 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <meta
-            name="viewport"
-            content="width=device-width, shrink-to-fit=0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
-    />
-    <title>HTML rendering in three.js</title>
-    <style>
-        #container, #canvas {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>three-html-render — HTML as a canvas texture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg: #fbfaf7;
+        --surface: #ffffff;
+        --ink: #1a1a1a;
+        --muted: #6b6b6b;
+        --line: #e4e2dd;
+        --line-strong: #bcb9b1;
+        --accent: #d74f2c;
+        --radius: 6px;
+        --max: 1040px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
 
-        #hpage * {
-            user-select: text;
-            pointer-events: auto;
-        }
+    main { max-width: var(--max); margin: 0 auto; padding: 0 32px; }
 
-        #hpage *::selection {
-            background-color: #020202;
-        }
+    /* ── Header ── */
+    header {
+        padding: 100px 0 64px;
+        border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+        display: inline-block;
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 20px;
+    }
+    .eyebrow .dot {
+        display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+        background: var(--accent); margin-right: 8px; vertical-align: middle;
+        transform: translateY(-1px);
+    }
+    h1 {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: clamp(42px, 7vw, 84px);
+        line-height: 1.02;
+        letter-spacing: -0.02em;
+        font-weight: 500;
+        margin: 0 0 28px;
+    }
+    h1 .accent { color: var(--accent); font-style: italic; }
+    .lede {
+        font-size: clamp(18px, 2.2vw, 22px);
+        line-height: 1.45;
+        color: #333;
+        max-width: 640px;
+        margin: 0 0 40px;
+    }
+    .lede code {
+        background: #eeebe4;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.92em;
+    }
 
-    </style>
-    <style id="canvas-style">
-        html,
-        body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-        }
+    .header-actions {
+        display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 10px 18px;
+        border-radius: 999px;
+        font-size: 14px; font-weight: 500;
+        border: 1px solid var(--line-strong);
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    .btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+    .btn .arrow { transition: transform 0.15s; }
+    .btn:hover .arrow { transform: translateX(2px); }
 
-        #hpage {
-            background-image: linear-gradient(68.1deg, rgba(196, 69, 69, 1) 9.2%, rgba(255, 167, 73, 0.82) 25%, rgba(253, 217, 82, 0.82) 43.4%, rgba(107, 225, 108, 0.82) 58.2%, rgba(107, 169, 225, 0.82) 75.1%, rgba(153, 41, 243, 0.82) 87.3%);
-            /*width: 2048px;*/
-            /*height: 2048px;*/
-            font-size: 80px;
-            height: 100%;
-            overflow-y: scroll;
-            animation: a 2s linear infinite;
-        }
+    /* ── Install block ── */
+    .install {
+        margin-top: 56px;
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 20px 40px;
+        padding-top: 48px;
+        border-top: 1px dashed var(--line);
+        align-items: start;
+    }
+    .install .label {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding-top: 4px;
+    }
+    .install pre {
+        margin: 0;
+        font-size: 14px;
+        background: transparent;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+    .install pre .tok-k { color: var(--accent); font-weight: 500; }
+    .install pre .tok-s { color: #3b7a3b; }
+    .install pre .tok-c { color: var(--muted); font-style: italic; }
 
-        #hcontent {
-            padding: 100px;
-            color: black;
-        }
+    /* ── Showcase (live preview) ── */
+    section.showcase {
+        padding: 72px 0 24px;
+    }
+    .showcase-item {
+        position: relative;
+        display: block;
+        overflow: hidden;
+        border-radius: 10px;
+        background: #0a0a0a;
+        aspect-ratio: 16 / 9;
+        border: 1px solid var(--line);
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .showcase-item:hover {
+        transform: translateY(-2px);
+        border-color: var(--line-strong);
+        box-shadow: 0 10px 40px -12px rgba(0,0,0,0.2);
+    }
+    .showcase-item iframe {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        pointer-events: none;
+        background: #0a0a0a;
+    }
+    .showcase-caption {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        padding: 24px 28px 22px;
+        background: linear-gradient(180deg, transparent, rgba(0,0,0,0.78));
+        color: #fff;
+        display: flex; align-items: end; justify-content: space-between;
+        gap: 20px;
+    }
+    .showcase-caption .caption-text {
+        display: flex; flex-direction: column; gap: 2px;
+    }
+    .showcase-caption .tag {
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.58);
+    }
+    .showcase-caption h3 {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 28px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        margin: 0;
+    }
+    .showcase-caption p {
+        font-size: 14px;
+        color: rgba(255,255,255,0.76);
+        margin: 2px 0 0;
+        line-height: 1.45;
+        max-width: 520px;
+    }
+    .showcase-caption .cta {
+        font-size: 13px;
+        color: rgba(255,255,255,0.7);
+        white-space: nowrap;
+        padding-bottom: 4px;
+    }
+    .showcase-item:hover .cta { color: #fff; }
+    @media (max-width: 640px) {
+        .showcase-item { aspect-ratio: 4 / 3; }
+        .showcase-caption { padding: 16px 18px 14px; flex-direction: column; align-items: start; gap: 8px; }
+        .showcase-caption h3 { font-size: 22px; }
+    }
 
-        a {
-            color: blue;
-        }
+    /* ── Examples ── */
+    section.examples {
+        padding: 96px 0 120px;
+    }
+    section.examples h2 {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 34px;
+        letter-spacing: -0.015em;
+        margin: 0 0 8px;
+        font-weight: 500;
+    }
+    section.examples .sub {
+        color: var(--muted);
+        margin: 0 0 48px;
+        font-size: 15px;
+    }
+    .group { margin-bottom: 56px; }
+    .group:last-child { margin-bottom: 0; }
+    .group-title {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 18px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+    }
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1px;
+        background: var(--line);
+        border: 1px solid var(--line);
+    }
+    .card {
+        background: var(--surface);
+        padding: 22px 22px 26px;
+        display: flex; flex-direction: column; gap: 8px;
+        transition: background 0.15s;
+        position: relative;
+    }
+    .card:hover {
+        background: #fdfcf8;
+    }
+    .card:hover .card-title::after {
+        transform: translateX(4px);
+    }
+    .card .tag {
+        display: inline-block;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 4px;
+    }
+    .card-title {
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0;
+    }
+    .card-title::after {
+        content: '→';
+        display: inline-block;
+        margin-left: 6px;
+        color: var(--muted);
+        transition: transform 0.15s, color 0.15s;
+    }
+    .card:hover .card-title::after { color: var(--accent); }
+    .card .desc {
+        font-size: 14px;
+        line-height: 1.5;
+        color: #4a4a4a;
+        margin: 0;
+    }
 
-        :root {
-            /*line-height: 1.5;*/
-            /*font-weight: 400;*/
-            color-scheme: light dark;
-            background-color: #242424;
+    /* ── Footer ── */
+    footer {
+        border-top: 1px solid var(--line);
+        padding: 40px 0 80px;
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+    }
+    footer a:hover { color: var(--ink); }
 
-            font-synthesis: none;
-            text-rendering: optimizeLegibility;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        .loader {
-            width: 100px;
-            margin-top: 20px;
-            min-height: 100px;
-            aspect-ratio: 1;
-            border: 10px solid #FFF;
-            border-bottom-color: #FF3D00;
-            border-radius: 50%;
-            box-sizing: border-box;
-            animation: rotation 1s 0s linear infinite;
-            /*animation: rotation 1s 0s linear infinite;*/
-        }
-
-        @keyframes rotation {
-            0% {
-                rotate: 0deg;
-            }
-            100% {
-                rotate: 360deg;
-            }
-        }
-
-        .wrapper {
-            position: relative;
-            right: 0;
-        }
-
-        .hover-btn {
-            font-size: 24px;
-            padding: 8px 24px;
-            margin-left: 20px;
-            background: #4a90d9;
-            color: white;
-            border: 2px solid #2a6ab5;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
-            vertical-align: middle;
-        }
-        .hover-btn:hover {
-            background: #ff6b35;
-            border-color: #cc4a1a;
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.5);
-        }
-        .hover-btn:active {
-            background: #cc4a1a;
-            transform: scale(0.95);
-        }
-
-        .demo-form fieldset {
-            border: 2px solid rgba(255,255,255,0.4);
-            border-radius: 8px;
-            padding: 20px;
-            font-size: 36px;
-        }
-        .demo-form legend {
-            font-size: 40px;
-            padding: 0 8px;
-        }
-        .demo-form label {
-            font-size: 36px;
-        }
-        .demo-form input[type="text"] {
-            font-size: 32px;
-            padding: 6px 10px;
-            border: 2px solid #ccc;
-            border-radius: 4px;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .demo-form input[type="text"]:hover,
-        .demo-form textarea:hover {
-            border-color: #4a90d9;
-        }
-        .demo-form input[type="text"]:focus,
-        .demo-form textarea:focus {
-            border-color: #ff6b35;
-            box-shadow: 0 0 6px rgba(255, 107, 53, 0.4);
-            outline: none;
-        }
-        .demo-form input[type="checkbox"],
-        .demo-form input[type="radio"] {
-            width: 24px;
-            height: 24px;
-            vertical-align: middle;
-        }
-        .demo-form input[type="range"] {
-            height: 24px;
-            vertical-align: middle;
-        }
-        .demo-form button {
-            font-size: 34px;
-            padding: 8px 28px;
-            background: #0cef86;
-            color: #111;
-            border: 2px solid #09b866;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.2s;
-        }
-        .demo-form button:hover {
-            background: #fff;
-            border-color: #0cef86;
-            transform: scale(1.05);
-        }
-        .demo-form button:active {
-            background: #09b866;
-            transform: scale(0.95);
-        }
-
-        .wrapper h1 {
-            color: #fff;
-            font-size: 2em;
-            position: absolute;
-            /*transform: translate(-50%, -50%);*/
-        }
-
-        .wrapper h1:nth-child(1) {
-            color: transparent;
-            -webkit-text-stroke: 2px #0cef86;
-        }
-
-        .wrapper h1:nth-child(2) {
-            color: #0cef86;
-            animation: animate 4s ease-in-out infinite;
-        }
-
-        @keyframes animate {
-            0%,
-            100% {
-                clip-path: polygon(
-                        0% 45%,
-                        16% 44%,
-                        33% 50%,
-                        54% 60%,
-                        70% 61%,
-                        84% 59%,
-                        100% 52%,
-                        100% 100%,
-                        0% 100%
-                );
-            }
-            50% {
-                clip-path: polygon(
-                        0% 60%,
-                        15% 65%,
-                        34% 66%,
-                        51% 62%,
-                        67% 50%,
-                        84% 45%,
-                        100% 46%,
-                        100% 100%,
-                        0% 100%
-                );
-            }
-        }
-    </style>
+    @media (max-width: 640px) {
+        main { padding: 0 22px; }
+        header { padding: 56px 0 48px; }
+        .install { grid-template-columns: 1fr; gap: 8px; padding-top: 32px; }
+        section.examples { padding: 64px 0 80px; }
+    }
+</style>
 </head>
 <body>
-<div id="container">
-    <canvas id="canvas" layoutsubtree>
-        <div id="hpage">
-            <div id="hcontent">
-                <div> hello <button class="hover-btn">hover me</button></div>
-                <div> this is a canvas text!</div>
-                <div> multiline and scrolling</div>
-                <div> in webgl</div>
-                <div> really!</div>
-                <div><img src="https://cors-proxy.r2cache.com/https://samples.threepipe.org/minimal/uv_grid_opengl.jpg" width="300" style="margin-top: 10px;"></div>
-                <div> and this is a <b>very big line</b> that really flexes what we can do.</div>
-                <div> also something something <a href="https://threepipe.org" target="_blank">link can click.</a></div>
-                <div> Some fake forms:</div>
-                <div style="margin-bottom: 20px;">
-                    <button id="theme-toggle" style="font-size:40px;padding:8px 24px;cursor:pointer;border-radius:8px;border:1px solid #888;vertical-align:middle;">
-                        <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                        <span id="theme-label" style="vertical-align:middle;margin-left:8px;">Toggle</span>
-                    </button>
-                </div>
-                <div>
-                    <button id="btn1" style="scale:3; margin-left: 70px;">click me</button>
-                </div>
-                <div style="margin-top: 30px">
-                    <form class="demo-form" action="#" onsubmit="return false">
-                        <fieldset>
-                            <legend>Inputs Demo</legend>
-                            <p style="margin: 8px 0;">
-                                <label for="demoName">Name:</label>
-                                <input type="text" id="demoName" value="Canvas Voyager">
-                            </p>
-                            <p style="margin: 8px 0;">
-                                <input type="checkbox" id="demoCheck" checked>
-                                <label for="demoCheck">Enable feature</label>
-                            </p>
-                            <p style="margin: 8px 0;">
-                                <input type="radio" id="optA" name="demo-opt" value="a" checked>
-                                <label for="optA">Option A</label>
-                                <input type="radio" id="optB" name="demo-opt" value="b" style="margin-left: 12px;">
-                                <label for="optB">Option B</label>
-                            </p>
-                            <p style="margin: 8px 0;">
-                                <label for="demoRange">Level:</label>
-                                <input type="range" id="demoRange" min="0" max="100" value="60">
-                            </p>
-                            <p style="margin: 8px 0;">
-                                <label for="demoNotes">Notes:</label><br>
-                                <textarea id="demoNotes" rows="3" style="font-size:28px;width:90%;padding:6px 8px;border:2px solid #ccc;border-radius:4px;">Some sample text here</textarea>
-                            </p>
-                            <p style="margin: 8px 0; text-align: right;">
-                                <button type="submit">Submit</button>
-                            </p>
-                        </fieldset>
-                    </form>
-                </div>
-                <div style="margin-top: 10px;"><i>and here's css animations</i></div>
-                <div id="spinners" style="margin-top: 30px; display: flex; gap: 20px;">
-                    spinner <span style="width: 40px"></span>
-                    <div class="loader"></div>
-                    <div class="loader"></div>
-                    <div class="loader"></div>
-                    <div class="loader"></div>
-                    <div class="loader"></div>
-                </div>
+<main>
 
-                <div style="margin-top:400px;"> and this is another <b>very big line</b> to show more scrolling.</div>
-                <div> and this is another <b>very big line</b> to show more scrolling.</div>
-                <div> and a link to <a href="https://google.com" target="_blank">google.com</a></div>
+<header>
+    <div class="eyebrow"><span class="dot"></span>WICG HTML-in-Canvas polyfill</div>
+    <h1>HTML,<br>as a canvas <span class="accent">texture</span>.</h1>
+    <p class="lede">
+        <b>three-html-render</b> brings the <code>HTMLCanvasElement</code>
+        API extensions from the W3C draft
+        (<code>requestPaint</code>, <code>texElementImage2D</code>,
+        <code>captureElementImage</code>) to every modern browser, plus
+        the three.js helpers to drop live HTML into a WebGL or WebGPU
+        scene &mdash; <em>interactive</em>, not a screenshot.
+    </p>
+    <div class="header-actions">
+        <a class="btn primary" href="https://github.com/repalash/three-html-render">GitHub <span class="arrow">→</span></a>
+        <a class="btn" href="https://www.npmjs.com/package/three-html-render">npm</a>
+        <a class="btn" href="https://github.com/WICG/html-in-canvas">WICG spec</a>
+    </div>
+
+    <div class="install">
+        <div class="label">One-liner <br><span style="text-transform:none;letter-spacing:0;color:#8a8a8a;font-size:11px;">drop into any page</span></div>
+        <pre>&lt;<span class="tok-k">script</span> <span class="tok-k">src</span>=<span class="tok-s">"https://cdn.jsdelivr.net/npm/three-html-render/dist/polyfill.js"</span>&gt;&lt;/<span class="tok-k">script</span>&gt;
+<span class="tok-c">// HTML-in-Canvas API is now patched onto every &lt;canvas layoutsubtree&gt;.</span></pre>
+        <div class="label">npm</div>
+        <pre><span class="tok-k">npm</span> install three-html-render</pre>
+        <div class="label">Use</div>
+        <pre><span class="tok-k">import</span> { installHtmlInCanvasPolyfill } <span class="tok-k">from</span> <span class="tok-s">'three-html-render/polyfill'</span>
+<span class="tok-k">import</span> { HTMLTexture, InteractionManager } <span class="tok-k">from</span> <span class="tok-s">'three-html-render'</span>
+
+installHtmlInCanvasPolyfill()     <span class="tok-c">// patches requestPaint, onpaint, ...</span>
+material.map = <span class="tok-k">new</span> HTMLTexture(element)
+<span class="tok-k">new</span> InteractionManager().connect(renderer, camera).add(mesh)</pre>
+    </div>
+</header>
+
+<section class="showcase">
+    <a class="showcase-item" href="examples/three-dragon.html">
+        <iframe src="examples/three-dragon.html" loading="lazy" scrolling="no" title="Dragon demo preview"></iframe>
+        <div class="showcase-caption">
+            <div class="caption-text">
+                <span class="tag">three.js · glass</span>
+                <h3>Dragon + glass panel</h3>
+                <p>A scrollable HTML page rendered behind a transmissive glass dragon. Hover, type, follow links &mdash; all inside the canvas.</p>
             </div>
+            <span class="cta">Open demo →</span>
         </div>
-    </canvas>
-</div>
+    </a>
+</section>
 
-<script type="module">
-    import {installHtmlInCanvasPolyfill, getHtmlRenderer} from './src/htmlInCanvasPolyfill.ts'
-    installHtmlInCanvasPolyfill()
+<section class="examples">
+    <h2>Examples</h2>
+    <p class="sub">Everything below runs through the polyfill. Source in <code style="background:#eeebe4;padding:1px 5px;border-radius:3px;font-size:13px">examples/</code>.</p>
 
-    import {sketch} from './src/codrops-sample.js'
-    import {ThreeHTMLRenderer} from './src/threeHTMLRenderer.ts'
+    <div class="group">
+        <div class="group-title">three.js — upstream-compatible API</div>
+        <div class="grid">
+            <a class="card" href="examples/three-html.html">
+                <span class="tag">three.js · webgl</span>
+                <h3 class="card-title">three-html</h3>
+                <p class="desc">Direct port of three.js's <code>webgl_materials_texture_html</code> example. <code>HTMLTexture</code> + <code>InteractionManager</code> from three.js 0.184.</p>
+            </a>
+            <a class="card" href="examples/three-html-raycast.html">
+                <span class="tag">three.js · raycast</span>
+                <h3 class="card-title">three-html-raycast</h3>
+                <p class="desc">Same cube, but one DOM element translates to the pointer via raycast UV &mdash; every face is interactive on a single element. Drag the background to orbit.</p>
+            </a>
+            <a class="card" href="examples/three-html-webgpu.html">
+                <span class="tag">three.js · webgpu</span>
+                <h3 class="card-title">three-html-webgpu</h3>
+                <p class="desc">The same demo on <code>WebGPURenderer</code> via <code>copyElementImageToTexture</code>.</p>
+            </a>
+            <a class="card" href="examples/three-html-webgpu-raycast.html">
+                <span class="tag">three.js · webgpu · raycast</span>
+                <h3 class="card-title">three-html-webgpu-raycast</h3>
+                <p class="desc">WebGPU + raycast interaction + OrbitControls.</p>
+            </a>
+            <a class="card" href="examples/three-html-legacy.html">
+                <span class="tag">three.js 0.164 · fallback</span>
+                <h3 class="card-title">three-html-legacy</h3>
+                <p class="desc">Same user code, pinned to three.js 0.164 (predates native <code>HTMLTexture</code>). Exercises our <code>captureElementImage</code> fallback + ported overlay math.</p>
+            </a>
+            <a class="card" href="examples/three-dragon.html">
+                <span class="tag">three.js · showcase</span>
+                <h3 class="card-title">dragon + glass panel</h3>
+                <p class="desc">Scrollable HTML panel behind a glass dragon (fork of a Codrops scene). Form, hover states, theme toggle &mdash; all inside the canvas.</p>
+            </a>
+        </div>
+    </div>
 
-    const threeCanvas = document.getElementById('canvas')
-    const {resize: resizeThree, camera, bgMesh, render, renderer: threeRenderer, scene: threeScene} = sketch({canvas: threeCanvas})
-    const htmlRenderer = new ThreeHTMLRenderer()
-    htmlRenderer.connect(threeCanvas, camera, threeRenderer)
+    <div class="group">
+        <div class="group-title">WebXR</div>
+        <div class="grid">
+            <a class="card" href="examples/webxr-vr.html">
+                <span class="tag">webxr · vr</span>
+                <h3 class="card-title">VR dashboards</h3>
+                <p class="desc">Four floating glass panels in VR. XR controller raycasts into DOM elements.</p>
+            </a>
+            <a class="card" href="examples/webxr-ar.html">
+                <span class="tag">webxr · ar</span>
+                <h3 class="card-title">AR HTML panel</h3>
+                <p class="desc">Tap a surface, anchor an HTML card to the real world. Requires ARCore.</p>
+            </a>
+        </div>
+    </div>
 
-    const hpage = document.getElementById('hpage')
-    hpage.style.width = '1024px'
-    hpage.style.height = '1024px'
-    htmlRenderer.addObject(hpage, bgMesh)
+    <div class="group">
+        <div class="group-title">Raw WebGL &amp; WebGPU (no three.js)</div>
+        <div class="grid">
+            <a class="card" href="examples/webGL.html">
+                <span class="tag">webgl · basics</span>
+                <h3 class="card-title">webGL</h3>
+                <p class="desc">Minimal gl-matrix scene, an HTML panel as a texture on a cube face.</p>
+            </a>
+            <a class="card" href="examples/webGL-text-input.html">
+                <span class="tag">webgl · interaction</span>
+                <h3 class="card-title">webGL text input</h3>
+                <p class="desc">Six-face cube with a form overlay per face using <code>InteractionManagerStandalone</code> (no three.js dependency).</p>
+            </a>
+            <a class="card" href="examples/focus-ring.html">
+                <span class="tag">webgl · shader</span>
+                <h3 class="card-title">focus ring</h3>
+                <p class="desc">Custom WebGL focus-glow shader sampling the HTML texture.</p>
+            </a>
+            <a class="card" href="examples/webgpu-jelly-slider/index.html">
+                <span class="tag">webgpu</span>
+                <h3 class="card-title">jelly slider</h3>
+                <p class="desc">WebGPU sample using <code>copyElementImageToTexture</code> for the HTML readout.</p>
+            </a>
+        </div>
+    </div>
 
-    function resize() {
-        resizeThree({
-            canvas: threeCanvas,
-            pixelRatio: window.devicePixelRatio,
-            viewportWidth: window.innerWidth,
-            viewportHeight: window.innerHeight,
-        })
-    }
+    <div class="group">
+        <div class="group-title">2D canvas</div>
+        <div class="grid">
+            <a class="card" href="examples/text-input.html">
+                <span class="tag">2d · form</span>
+                <h3 class="card-title">text input</h3>
+                <p class="desc">A form inside a 2D canvas &mdash; caret, selection, focus, keystrokes, all native.</p>
+            </a>
+            <a class="card" href="examples/complex-text.html">
+                <span class="tag">2d · typography</span>
+                <h3 class="card-title">complex text</h3>
+                <p class="desc">RTL, vertical writing modes, emoji, inline SVG and images &mdash; <code>ctx.drawElementImage</code>.</p>
+            </a>
+            <a class="card" href="examples/pie-chart.html">
+                <span class="tag">2d · svg</span>
+                <h3 class="card-title">pie chart</h3>
+                <p class="desc">CSS <code>conic-gradient</code> + SVG labels composited into 2D.</p>
+            </a>
+        </div>
+    </div>
+</section>
 
-    window.addEventListener('resize', resize)
-    resize()
+<footer>
+    <a href="https://github.com/repalash/three-html-render">GitHub</a>
+    <a href="https://www.npmjs.com/package/three-html-render">npm</a>
+    <a href="https://github.com/WICG/html-in-canvas">WICG HTML-in-Canvas</a>
+    <span style="margin-left:auto">MIT · <a href="https://github.com/repalash">@repalash</a></span>
+</footer>
 
-    function animate() {
-        requestAnimationFrame(animate)
-        htmlRenderer.update()
-        render()
-    }
-    animate()
-
-    if (window.__HTML_IN_CANVAS_POLYFILL__) {
-        const wrapper = document.createElement('div')
-        wrapper.className = 'wrapper'
-        wrapper.innerHTML = '<h1>Wavy text </h1><h1>Wavy text </h1>'
-        hpage.querySelector('#hcontent').appendChild(wrapper)
-    }
-
-    let clicki = 0
-    hpage.querySelector('#btn1').addEventListener('click', (ev) => {
-        ev.currentTarget.innerHTML = 'clicked ' + (clicki++ || '')
-    })
-
-    const toggle = hpage.querySelector('#theme-toggle')
-    const sunIcon = hpage.querySelector('#theme-icon-sun')
-    const moonIcon = hpage.querySelector('#theme-icon-moon')
-    const themeLabel = hpage.querySelector('#theme-label')
-    const themeStyle = document.getElementById('canvas-style')
-    let dark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    function applyTheme() {
-        themeStyle.textContent = themeStyle.textContent.replace(
-            /color-scheme:\s*[^;]+;/,
-            `color-scheme: ${dark ? 'dark' : 'light'};`
-        )
-        sunIcon.style.display = dark ? 'inline' : 'none'
-        moonIcon.style.display = dark ? 'none' : 'inline'
-        themeLabel.textContent = dark ? 'Light' : 'Dark'
-        if (window.__HTML_IN_CANVAS_POLYFILL__) {
-            getHtmlRenderer().invalidatePageStylesCss()
-        }
-        threeCanvas.requestPaint()
-    }
-    applyTheme()
-    toggle.addEventListener('click', () => {
-        dark = !dark
-        applyTheme()
-    })
-</script>
+</main>
 </body>
 </html>

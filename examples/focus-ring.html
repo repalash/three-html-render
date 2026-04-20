@@ -191,9 +191,34 @@
     color: #f6821f;
     text-decoration: none;
   }
+  .credit {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+    background: rgba(0, 0, 0, 0.5);
+    padding: 6px 14px;
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .credit a {
+    color: #f38037;
+    text-decoration: none;
+  }
+  .credit a:hover { text-decoration: underline; }
 </style>
 </head>
 <body class="body-dv">
+
+<div class="credit">
+  Original by Matt Rothenberg —
+  <a href="https://mattrothenberg.com/notes/html-in-canvas/" target="_blank" rel="noopener">HTML in Canvas</a>
+</div>
 
 <canvas id="canvas" width="920" height="1240" layoutsubtree>
   <div class="form-card" id="formCard">
@@ -236,7 +261,7 @@
 </canvas>
 
 
-<script>
+<script type="module">
 const canvas = document.getElementById('canvas');
 const formCard = document.getElementById('formCard');
 const gl = canvas.getContext('webgl2', { alpha: false });

@@ -1,4 +1,4 @@
-import {HtmlRenderer} from './htmlRenderer'
+import {HtmlRenderer, floorSubpixelLayout} from './htmlRenderer'
 
 export interface PolyfillOptions {
     pageStyles?: string
@@ -17,6 +17,8 @@ interface CanvasState {
     observers: (MutationObserver | ResizeObserver)[]
     cleanups: (() => void)[]
 }
+
+const CARET_BLINK_MS = 500
 
 const STATES = new Map<HTMLCanvasElement, CanvasState>()
 const renderer = new HtmlRenderer()
@@ -114,8 +116,10 @@ function computeElementTransform(
     const Sinv = new DOMMatrix().scale(1 / sx, 1 / sy)
     const cs = getComputedStyle(el)
     const originParts = cs.transformOrigin.split(' ')
-    const ox = parseFloat(originParts[0]) || cssW / 2
-    const oy = parseFloat(originParts[1]) || cssH / 2
+    const oxParsed = parseFloat(originParts[0])
+    const oyParsed = parseFloat(originParts[1])
+    const ox = Number.isFinite(oxParsed) ? oxParsed : cssW / 2
+    const oy = Number.isFinite(oyParsed) ? oyParsed : cssH / 2
     const T_o = new DOMMatrix().translate(ox, oy)
     const T_oi = new DOMMatrix().translate(-ox, -oy)
     return T_oi.multiply(Sinv).multiply(drawTransform).multiply(S).multiply(T_o)
@@ -389,6 +393,7 @@ function addChildToState(state: CanvasState, el: HTMLElement, before?: Node | nu
     el.style.top = '0'
     el.style.opacity = '0'
     el.style.pointerEvents = 'auto'
+    if ((window as any).__HIC_MUTATE_DOM__ !== false) floorSubpixelLayout(el)
     state.children.add(el)
     state.dirty.add(el)
     parentOverrides.set(el, state.canvas)
@@ -491,7 +496,11 @@ function patchCanvasEventListeners() {
         writable: true,
         value: function (this: HTMLCanvasElement, type: string, listener: any, options?: any) {
             origAdd.call(this, type, listener, options)
-            const s = STATES.get(this)
+            // Force state init if the canvas has layoutsubtree — the
+            // MutationObserver that would normally initialize the state runs
+            // asynchronously, and callers often setAttribute() + addEventListener()
+            // in the same synchronous block, racing the observer.
+            const s = STATES.get(this) || ensureState(this)
             if (s && MOUSE_EVENT_TYPES.has(type) && listener) {
                 const hostFn = typeof listener === 'function' ? listener.bind(this) : listener
                 hostListeners.set(listener, hostFn)
@@ -526,7 +535,6 @@ function installGlobalListeners() {
     const repositionAll = () => {
         for (const state of STATES.values()) state.positionHost()
     }
-    // scroll listener
     addGlobalListener(window, 'scroll', repositionAll, {passive: true})
     addGlobalListener(window, 'resize', repositionAll)
 
@@ -645,7 +653,6 @@ function attachHostListeners(host: HTMLDivElement, state: CanvasState) {
     host.addEventListener('input', () => markAllDirty('input'), true)
     host.addEventListener('change', () => markAllDirty('change'), true)
 
-    // Caret/selection movement and page-level text selection
     const onSelectionChange = () => {
         const sel = window.getSelection()
         const hasPageSelection = sel && !sel.isCollapsed && sel.rangeCount > 0
@@ -655,9 +662,7 @@ function attachHostListeners(host: HTMLDivElement, state: CanvasState) {
     document.addEventListener('selectionchange', onSelectionChange)
     state.cleanups.push(() => document.removeEventListener('selectionchange', onSelectionChange))
 
-    // --- Pseudo-class event listeners ---
-    // Class changes are picked up by the existing MutationObserver in attachObservers(),
-    // which marks the affected top-level child dirty and schedules a repaint.
+    // Class changes flip through the existing MutationObserver in attachObservers().
 
     host.addEventListener('mouseover', e => {
         const target = e.target as HTMLElement
@@ -684,10 +689,9 @@ function attachHostListeners(host: HTMLDivElement, state: CanvasState) {
             if (target.matches(':focus-visible')) target.classList.add('pseudo-focus-visible')
         } catch { /* :focus-visible not supported */ }
 
-        // Start caret blink repaint for text inputs
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
             if (state.caretBlinkInterval) clearInterval(state.caretBlinkInterval)
-            state.caretBlinkInterval = setInterval(() => markAllDirty('caret-blink'), 500)
+            state.caretBlinkInterval = setInterval(() => markAllDirty('caret-blink'), CARET_BLINK_MS)
         }
     }, true)
 

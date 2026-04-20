@@ -1,16 +1,16 @@
 // Import extra THREE plugins
 import * as THREE1 from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
-// import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
-import { LuminosityHighPassShader } from 'three/examples/jsm/shaders/LuminosityHighPassShader';
-import { CopyShader } from 'three/examples/jsm/shaders/CopyShader';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+// import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { LuminosityHighPassShader } from 'three/addons/shaders/LuminosityHighPassShader.js';
+import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { GUI } from 'dat.gui';
 
 const THREE = {
@@ -94,7 +94,7 @@ export function sketch({ canvas }){
 
     const textureLoader = new THREE.TextureLoader();
 
-    const bgTexture = textureLoader.load("texture.jpg");
+    const bgTexture = textureLoader.load("/texture.jpg");
     const bgGeometry = new THREE.PlaneGeometry(5, 5);
     const bgMaterial = new THREE.MeshBasicMaterial({ map: bgTexture });
     const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
@@ -108,7 +108,7 @@ export function sketch({ canvas }){
         }
     );
 
-    const normalMapTexture = textureLoader.load("normal.jpg");
+    const normalMapTexture = textureLoader.load("/normal.jpg");
     normalMapTexture.wrapS = THREE.RepeatWrapping;
     normalMapTexture.wrapT = THREE.RepeatWrapping;
     normalMapTexture.repeat.set(options.normalRepeat, options.normalRepeat);
@@ -143,7 +143,7 @@ export function sketch({ canvas }){
     gltfLoader.setDRACOLoader(dracoLoader);
 
     // Load dragon GLTF model
-    gltfLoader.load("dragon2.glb", (gltf) => {
+    gltfLoader.load("/dragon2.glb", (gltf) => {
         // Try to find a mesh named "Dragon", or use the first mesh in the scene
         let dragon = gltf.scene.children.find((child) => child.name === "Dragon");
 

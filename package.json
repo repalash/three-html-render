@@ -19,6 +19,22 @@
     "./polyfill": {
       "types": "./dist/htmlInCanvasPolyfill.d.ts",
       "import": "./dist/polyfill.mjs"
+    },
+    "./html-texture": {
+      "types": "./dist/htmlTexture.d.ts",
+      "import": "./dist/html-texture.js"
+    },
+    "./interaction-manager": {
+      "types": "./dist/interactionManager.d.ts",
+      "import": "./dist/interaction-manager.js"
+    },
+    "./interaction-manager-standalone": {
+      "types": "./dist/interactionManagerStandalone.d.ts",
+      "import": "./dist/interaction-manager-standalone.js"
+    },
+    "./raycast-interaction-manager": {
+      "types": "./dist/raycastInteractionManager.d.ts",
+      "import": "./dist/raycast-interaction-manager.js"
     }
   },
   "files": [
@@ -39,18 +55,17 @@
     }
   },
   "devDependencies": {
-    "@types/three": "^0.164.1",
+    "@types/three": "^0.184.0",
     "dat.gui": "^0.7.9",
     "playwright": "^1.59.1",
     "rollup-plugin-license": "^3.7.1",
-    "three": "^0.164.1",
     "ts-browser-helpers": "^0.12.0",
     "typescript": "^5.2.2",
     "vite": "^6.1.1",
     "vite-plugin-dts": "^4.5.4"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --config vite.config.demo.ts",
     "build": "vite build && vite build --config vite.config.extension.ts",
     "build:demo": "vite build --config vite.config.demo.ts",
     "build:extension": "vite build --config vite.config.extension.ts && cp dist/polyfill.js extension/chrome/ && cp dist/polyfill.js extension/safari/",

@@ -2,6 +2,7 @@ import {createImage, css, embedUrlRefs} from 'ts-browser-helpers'
 import {syncFormState} from './syncFormState'
 
 const _debugHIC = typeof location !== 'undefined' && new URLSearchParams(location.search).has('debugPolyfillHIC')
+const CARET_BLINK_MS = 500
 
 export class HtmlRenderer {
     pixelRatio = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
@@ -474,7 +475,7 @@ function injectCaretAndSelection(rootSrc: HTMLElement, rootDst: HTMLElement) {
         const caretX = contentOriginX + pos.x - inputEl.scrollLeft
         const caretY = contentOriginY + pos.y - inputEl.scrollTop
 
-        const caretVisible = Math.floor(Date.now() / 500) % 2 === 0
+        const caretVisible = Math.floor(Date.now() / CARET_BLINK_MS) % 2 === 0
         if (caretVisible && caretX >= clipLeft && caretX <= clipRight
             && caretY >= clipTop && caretY + pos.height <= clipBottom) {
             const caret = document.createElement('div')
@@ -601,15 +602,30 @@ function injectPageSelection(rootSrc: HTMLElement, rootDst: HTMLElement) {
     }
 }
 
+const VERTICAL_PROPS = ['fontSize', 'lineHeight', 'height', 'minHeight', 'maxHeight', 'marginTop', 'marginBottom', 'paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'] as const
+
+function floorVerticalDimensions(el: HTMLElement) {
+    const cs = getComputedStyle(el)
+    for (const prop of VERTICAL_PROPS) {
+        const v = parseFloat(cs[prop])
+        if (isNaN(v)) continue
+        if (v % 1 !== 0) el.style[prop] = Math.floor(v) + 'px'
+    }
+}
+
+export function floorSubpixelLayout(root: HTMLElement) {
+    for (const el of [root, ...root.querySelectorAll<HTMLElement>('*')]) {
+        floorVerticalDimensions(el)
+    }
+}
+
 function freezeResolvedTextMetrics(src: HTMLElement, dst: HTMLElement) {
     const srcAll = [src, ...src.querySelectorAll<HTMLElement>('*')]
     const dstAll = [dst, ...dst.querySelectorAll<HTMLElement>('*')]
     if (srcAll.length !== dstAll.length) return
     for (let i = 0; i < srcAll.length; i++) {
         const cs = getComputedStyle(srcAll[i])
-        // Floor all fractional vertical dimensions to prevent cumulative
-        // sub-pixel drift in SVG-as-image rasterization
-        for (const prop of ['fontSize', 'lineHeight', 'height', 'minHeight', 'maxHeight', 'marginTop', 'marginBottom', 'paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'] as const) {
+        for (const prop of VERTICAL_PROPS) {
             const v = parseFloat(cs[prop])
             if (isNaN(v)) continue
             dstAll[i].style[prop] = (v % 1 !== 0) ? Math.floor(v) + 'px' : cs[prop]

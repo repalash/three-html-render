@@ -68,64 +68,75 @@
 </canvas>
 
 <script type="module">
-  import { Matrix4, Vector3 } from 'three';
   import { syncFormState } from '/src/syncFormState.ts';
-
   import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
+  import { InteractionManagerStandalone } from '/src/interactionManagerStandalone.ts';
   installHtmlInCanvasPolyfill();
 
-  const CUBE_ROTATION = 1;
   const PI = Math.PI;
+  const CUBE_ROTATION = 1;
+  const FOV = (35 * PI) / 180;
   let render_context = null;
 
-  // Face definitions: local normal direction and rotation to orient the face
-  const FACE_DEFS = [
-    { name: 'front',  faceRotation: new Matrix4() },
-    { name: 'back',   faceRotation: new Matrix4().makeRotationY(PI) },
-    { name: 'right',  faceRotation: new Matrix4().makeRotationY(PI / 2) },
-    { name: 'left',   faceRotation: new Matrix4().makeRotationY(-PI / 2) },
-    { name: 'top',    faceRotation: new Matrix4().makeRotationX(-PI / 2) },
-    { name: 'bottom', faceRotation: new Matrix4().makeRotationX(PI / 2) },
+  // Face rotations as column-major 4x4 matrices
+  const FACE_ROTATIONS = [
+    new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),           // front
+    new Float32Array([-1,0,0,0, 0,1,0,0, 0,0,-1,0, 0,0,0,1]),         // back
+    new Float32Array([0,0,-1,0, 0,1,0,0, 1,0,0,0, 0,0,0,1]),          // right
+    new Float32Array([0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1]),          // left
+    new Float32Array([1,0,0,0, 0,0,-1,0, 0,1,0,0, 0,0,0,1]),          // top
+    new Float32Array([1,0,0,0, 0,0,1,0, 0,-1,0,0, 0,0,0,1]),          // bottom
   ];
-
-  function loadTexture(gl) {
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texElementImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, window.draw_element);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    return texture;
-  }
-
-  function render() {
-    if (!render_context) return;
-    drawScene(render_context.gl, render_context.program, render_context.buffers,
-              render_context.texture, CUBE_ROTATION);
-    updateOverlays();
-    requestAnimationFrame(render);
-  }
-
-  const _viewport = new Matrix4();
-  const _pixelToLocal = new Matrix4();
-  const _mvp = new Matrix4();
-  const _camDir = new Vector3(0, 0, -1);
-  const _faceNormal = new Vector3();
 
   const canvas = document.querySelector('#gl-canvas');
   const elem = document.getElementById('draw_element');
+
+  // Mirrors drawScene() in webGLSetup.js.
+  const cubeModelView = new DOMMatrix();
+  cubeModelView.translateSelf(0, 0, -6);
+  cubeModelView.rotateSelf(0, 0, CUBE_ROTATION * 180 / PI);
+  cubeModelView.rotateSelf(0, CUBE_ROTATION * 0.7 * 180 / PI, 0);
+  cubeModelView.rotateSelf(CUBE_ROTATION * 0.3 * 180 / PI, 0, 0);
+
+  const overlay = new InteractionManagerStandalone();
+  const IDENTITY = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+  overlay.connect(canvas, IDENTITY, IDENTITY);
+
+  const host = document.querySelector('[data-html-in-canvas-host]') || canvas;
   const faceElements = [];
+  const overlayObjects = [];
 
-  // Build cube modelView (same as drawScene)
-  const cubeModelView = new Matrix4();
-  cubeModelView.makeTranslation(0, 0, -6);
-  cubeModelView.multiply(new Matrix4().makeRotationZ(CUBE_ROTATION));
-  cubeModelView.multiply(new Matrix4().makeRotationY(CUBE_ROTATION * 0.7));
-  cubeModelView.multiply(new Matrix4().makeRotationX(CUBE_ROTATION * 0.3));
+  for (let i = 0; i < FACE_ROTATIONS.length; i++) {
+    const el = i === 0 ? elem : elem.cloneNode(true);
+    if (i > 0) {
+      el.removeAttribute('id');
+      el.classList.add('face-clone');
+      host.appendChild(el);
+    }
+    el.style.opacity = '0.4';
 
-  // Build projection (same as drawScene)
-  const fov = (35 * PI) / 180;
-  let projectionMatrix = new Matrix4();
+    el.addEventListener('input', () => {
+      if (el !== elem) syncToOriginal(el);
+      syncFromOriginal();
+      canvas.requestPaint();
+    }, true);
+    el.addEventListener('change', () => {
+      if (el !== elem) syncToOriginal(el);
+      syncFromOriginal();
+      canvas.requestPaint();
+    }, true);
+
+    faceElements.push(el);
+
+    // Compute world matrix for this face
+    const faceWorld = new DOMMatrix(cubeModelView.toFloat64Array());
+    faceWorld.multiplySelf(new DOMMatrix(Array.from(FACE_ROTATIONS[i])));
+    const worldArr = new Float32Array(faceWorld.toFloat64Array());
+
+    // localSize uses negative x/y to match the cube's UV winding convention
+    const obj = overlay.add(el, worldArr, {x: -2, y: -2, z: 2}, 1);
+    overlayObjects.push(obj);
+  }
 
   function syncToOriginal(clone) {
     const srcFields = clone.querySelectorAll('input, textarea, select');
@@ -145,89 +156,29 @@
     }
   }
 
-  // Append clones to the host (polyfill) or canvas (native)
-  const host = document.querySelector('[data-html-in-canvas-host]') || canvas;
-
-  // Create 6 face elements (original + 5 clones)
-  for (let i = 0; i < FACE_DEFS.length; i++) {
-    const el = i === 0 ? elem : elem.cloneNode(true);
-    if (i > 0) {
-      el.removeAttribute('id');
-      el.classList.add('face-clone');
-      host.appendChild(el);
-    }
-    el.style.opacity = '0.4';
-    el.style.pointerEvents = 'auto';
-
-    el.addEventListener('input', () => {
-      if (el !== elem) syncToOriginal(el);
-      syncFromOriginal();
-      canvas.requestPaint();
-    }, true);
-    el.addEventListener('change', () => {
-      if (el !== elem) syncToOriginal(el);
-      syncFromOriginal();
-      canvas.requestPaint();
-    }, true);
-
-    faceElements.push(el);
+  function loadTexture(gl) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texElementImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, window.draw_element);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
   }
 
-  function updateOverlays() {
-    const cssW = canvas.clientWidth;
-    const cssH = canvas.clientHeight;
-    const aspect = cssW / cssH;
+  function render() {
+    if (!render_context) return;
+    drawScene(render_context.gl, render_context.program, render_context.buffers,
+              render_context.texture, CUBE_ROTATION);
 
-    _viewport.set(
-      cssW / 2, 0, 0, cssW / 2,
-      0, -cssH / 2, 0, cssH / 2,
-      0, 0, 1, 0,
-      0, 0, 0, 1
-    );
+    // Update projection for overlay (matches drawScene's perspective)
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    const projArr = mat4.create();
+    mat4.perspective(projArr, FOV, aspect, 0.1, 100);
+    overlay.setProjectionMatrix(new Float32Array(projArr));
+    overlay.update();
 
-    projectionMatrix.makePerspective(
-      -aspect * Math.tan(fov / 2) * 0.1, aspect * Math.tan(fov / 2) * 0.1,
-      Math.tan(fov / 2) * 0.1, -Math.tan(fov / 2) * 0.1,
-      0.1, 100
-    );
-
-    for (let i = 0; i < FACE_DEFS.length; i++) {
-      const el = faceElements[i];
-      const face = FACE_DEFS[i];
-
-      const elemW = el.offsetWidth;
-      const elemH = el.offsetHeight;
-      if (elemW <= 0 || elemH <= 0) continue;
-
-      // pixelToLocal: maps element pixels to local face coords on the front face (z=1)
-      _pixelToLocal.set(
-        -2 / elemW, 0, 0, 1,
-        0, 2 / elemH, 0, -1,
-        0, 0, 1, 1,
-        0, 0, 0, 1
-      );
-
-      // faceModelView = cubeModelView × faceRotation
-      const faceModelView = cubeModelView.clone().multiply(face.faceRotation);
-
-      // MVP = projection × faceModelView × pixelToLocal
-      _mvp.multiplyMatrices(projectionMatrix, faceModelView);
-      _mvp.multiply(_pixelToLocal);
-      _mvp.premultiply(_viewport);
-
-      // Backface culling: strip translation, transform normal, check Z
-      const rotOnly = faceModelView.clone().setPosition(0, 0, 0);
-      _faceNormal.set(0, 0, 1).applyMatrix4(rotOnly);
-      const frontFacing = _faceNormal.z > 0;
-
-      el.style.position = 'absolute';
-      el.style.left = '0';
-      el.style.top = '0';
-      el.style.transformOrigin = '0 0';
-      el.style.pointerEvents = frontFacing ? 'auto' : 'none';
-      el.style.display = frontFacing ? '' : 'none';
-      el.style.transform = 'matrix3d(' + _mvp.elements.join(',') + ')';
-    }
+    requestAnimationFrame(render);
   }
 
   function main() {
@@ -281,8 +232,7 @@
     }
     const {gl} = render_context;
     gl.deleteTexture(render_context.texture);
-    const newTex = loadTexture(gl);
-    render_context.texture = newTex;
+    render_context.texture = loadTexture(gl);
   };
   canvas.requestPaint();
   document.fonts.ready.then(() => canvas.requestPaint());

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta
+            name="viewport"
+            content="width=device-width, shrink-to-fit=0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+    <title>HTML rendering in three.js</title>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+        "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.tsl.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/",
+        "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+      }
+    }
+    </script>
+    <style>
+        #container, #canvas {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+
+        #hpage * {
+            user-select: text;
+            pointer-events: auto;
+        }
+
+        #hpage *::selection {
+            background-color: #020202;
+        }
+
+    </style>
+    <style id="canvas-style">
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+
+        #hpage {
+            background-image: linear-gradient(68.1deg, rgba(196, 69, 69, 1) 9.2%, rgba(255, 167, 73, 0.82) 25%, rgba(253, 217, 82, 0.82) 43.4%, rgba(107, 225, 108, 0.82) 58.2%, rgba(107, 169, 225, 0.82) 75.1%, rgba(153, 41, 243, 0.82) 87.3%);
+            /*width: 2048px;*/
+            /*height: 2048px;*/
+            font-size: 80px;
+            height: 100%;
+            overflow-y: scroll;
+            animation: a 2s linear infinite;
+        }
+
+        #hcontent {
+            padding: 100px;
+            color: black;
+        }
+
+        a {
+            color: blue;
+        }
+
+        :root {
+            /*line-height: 1.5;*/
+            /*font-weight: 400;*/
+            color-scheme: light dark;
+            background-color: #242424;
+
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .loader {
+            width: 100px;
+            margin-top: 20px;
+            min-height: 100px;
+            aspect-ratio: 1;
+            border: 10px solid #FFF;
+            border-bottom-color: #FF3D00;
+            border-radius: 50%;
+            box-sizing: border-box;
+            animation: rotation 1s 0s linear infinite;
+            /*animation: rotation 1s 0s linear infinite;*/
+        }
+
+        @keyframes rotation {
+            0% {
+                rotate: 0deg;
+            }
+            100% {
+                rotate: 360deg;
+            }
+        }
+
+        .wrapper {
+            position: relative;
+            right: 0;
+        }
+
+        .hover-btn {
+            font-size: 24px;
+            padding: 8px 24px;
+            margin-left: 20px;
+            background: #4a90d9;
+            color: white;
+            border: 2px solid #2a6ab5;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+            vertical-align: middle;
+        }
+        .hover-btn:hover {
+            background: #ff6b35;
+            border-color: #cc4a1a;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.5);
+        }
+        .hover-btn:active {
+            background: #cc4a1a;
+            transform: scale(0.95);
+        }
+
+        .demo-form fieldset {
+            border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 8px;
+            padding: 20px;
+            font-size: 36px;
+        }
+        .demo-form legend {
+            font-size: 40px;
+            padding: 0 8px;
+        }
+        .demo-form label {
+            font-size: 36px;
+        }
+        .demo-form input[type="text"] {
+            font-size: 32px;
+            padding: 6px 10px;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .demo-form input[type="text"]:hover,
+        .demo-form textarea:hover {
+            border-color: #4a90d9;
+        }
+        .demo-form input[type="text"]:focus,
+        .demo-form textarea:focus {
+            border-color: #ff6b35;
+            box-shadow: 0 0 6px rgba(255, 107, 53, 0.4);
+            outline: none;
+        }
+        .demo-form input[type="checkbox"],
+        .demo-form input[type="radio"] {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+        }
+        .demo-form input[type="range"] {
+            height: 24px;
+            vertical-align: middle;
+        }
+        .demo-form button {
+            font-size: 34px;
+            padding: 8px 28px;
+            background: #0cef86;
+            color: #111;
+            border: 2px solid #09b866;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }
+        .demo-form button:hover {
+            background: #fff;
+            border-color: #0cef86;
+            transform: scale(1.05);
+        }
+        .demo-form button:active {
+            background: #09b866;
+            transform: scale(0.95);
+        }
+
+        .wrapper h1 {
+            color: #fff;
+            font-size: 2em;
+            position: absolute;
+            /*transform: translate(-50%, -50%);*/
+        }
+
+        .wrapper h1:nth-child(1) {
+            color: transparent;
+            -webkit-text-stroke: 2px #0cef86;
+        }
+
+        .wrapper h1:nth-child(2) {
+            color: #0cef86;
+            animation: animate 4s ease-in-out infinite;
+        }
+
+        @keyframes animate {
+            0%,
+            100% {
+                clip-path: polygon(
+                        0% 45%,
+                        16% 44%,
+                        33% 50%,
+                        54% 60%,
+                        70% 61%,
+                        84% 59%,
+                        100% 52%,
+                        100% 100%,
+                        0% 100%
+                );
+            }
+            50% {
+                clip-path: polygon(
+                        0% 60%,
+                        15% 65%,
+                        34% 66%,
+                        51% 62%,
+                        67% 50%,
+                        84% 45%,
+                        100% 46%,
+                        100% 100%,
+                        0% 100%
+                );
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="container">
+    <canvas id="canvas" layoutsubtree>
+        <div id="hpage">
+            <div id="hcontent">
+                <div> hello <button class="hover-btn">hover me</button></div>
+                <div> this is a canvas text!</div>
+                <div> multiline and scrolling</div>
+                <div> in webgl</div>
+                <div> really!</div>
+                <div><img src="https://cors-proxy.r2cache.com/https://samples.threepipe.org/minimal/uv_grid_opengl.jpg" width="300" style="margin-top: 10px;"></div>
+                <div> and this is a <b>very big line</b> that really flexes what we can do.</div>
+                <div> also something something <a href="https://threepipe.org" target="_blank">link can click.</a></div>
+                <div> Some fake forms:</div>
+                <div style="margin-bottom: 20px;">
+                    <button id="theme-toggle" style="font-size:40px;padding:8px 24px;cursor:pointer;border-radius:8px;border:1px solid #888;vertical-align:middle;">
+                        <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                        <span id="theme-label" style="vertical-align:middle;margin-left:8px;">Toggle</span>
+                    </button>
+                </div>
+                <div>
+                    <button id="btn1" style="scale:3; margin-left: 70px;">click me</button>
+                </div>
+                <div style="margin-top: 30px">
+                    <form class="demo-form" action="#" onsubmit="return false">
+                        <fieldset>
+                            <legend>Inputs Demo</legend>
+                            <p style="margin: 8px 0;">
+                                <label for="demoName">Name:</label>
+                                <input type="text" id="demoName" value="Canvas Voyager">
+                            </p>
+                            <p style="margin: 8px 0;">
+                                <input type="checkbox" id="demoCheck" checked>
+                                <label for="demoCheck">Enable feature</label>
+                            </p>
+                            <p style="margin: 8px 0;">
+                                <input type="radio" id="optA" name="demo-opt" value="a" checked>
+                                <label for="optA">Option A</label>
+                                <input type="radio" id="optB" name="demo-opt" value="b" style="margin-left: 12px;">
+                                <label for="optB">Option B</label>
+                            </p>
+                            <p style="margin: 8px 0;">
+                                <label for="demoRange">Level:</label>
+                                <input type="range" id="demoRange" min="0" max="100" value="60">
+                            </p>
+                            <p style="margin: 8px 0;">
+                                <label for="demoNotes">Notes:</label><br>
+                                <textarea id="demoNotes" rows="3" style="font-size:28px;width:90%;padding:6px 8px;border:2px solid #ccc;border-radius:4px;">Some sample text here</textarea>
+                            </p>
+                            <p style="margin: 8px 0; text-align: right;">
+                                <button type="submit">Submit</button>
+                            </p>
+                        </fieldset>
+                    </form>
+                </div>
+                <div style="margin-top: 10px;"><i>and here's css animations</i></div>
+                <div id="spinners" style="margin-top: 30px; display: flex; gap: 20px;">
+                    spinner <span style="width: 40px"></span>
+                    <div class="loader"></div>
+                    <div class="loader"></div>
+                    <div class="loader"></div>
+                    <div class="loader"></div>
+                    <div class="loader"></div>
+                </div>
+
+                <div style="margin-top:400px;"> and this is another <b>very big line</b> to show more scrolling.</div>
+                <div> and this is another <b>very big line</b> to show more scrolling.</div>
+                <div> and a link to <a href="https://google.com" target="_blank">google.com</a></div>
+            </div>
+        </div>
+    </canvas>
+</div>
+
+<script type="module">
+    import {installHtmlInCanvasPolyfill, getHtmlRenderer} from '/src/htmlInCanvasPolyfill.ts'
+    installHtmlInCanvasPolyfill()
+
+    import {sketch} from '/src/codrops-sample.js'
+    import {ThreeHTMLRenderer} from '/src/threeHTMLRenderer.ts'
+
+    const threeCanvas = document.getElementById('canvas')
+    const {resize: resizeThree, camera, bgMesh, render, renderer: threeRenderer, scene: threeScene} = sketch({canvas: threeCanvas})
+    const htmlRenderer = new ThreeHTMLRenderer()
+    htmlRenderer.connect(threeCanvas, camera, threeRenderer)
+
+    const hpage = document.getElementById('hpage')
+    hpage.style.width = '1024px'
+    hpage.style.height = '1024px'
+    htmlRenderer.addObject(hpage, bgMesh)
+
+    function resize() {
+        resizeThree({
+            canvas: threeCanvas,
+            pixelRatio: window.devicePixelRatio,
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+        })
+    }
+
+    window.addEventListener('resize', resize)
+    resize()
+
+    function animate() {
+        requestAnimationFrame(animate)
+        htmlRenderer.update()
+        render()
+    }
+    animate()
+
+    if (window.__HTML_IN_CANVAS_POLYFILL__) {
+        const wrapper = document.createElement('div')
+        wrapper.className = 'wrapper'
+        wrapper.innerHTML = '<h1>Wavy text </h1><h1>Wavy text </h1>'
+        hpage.querySelector('#hcontent').appendChild(wrapper)
+    }
+
+    let clicki = 0
+    hpage.querySelector('#btn1').addEventListener('click', (ev) => {
+        ev.currentTarget.innerHTML = 'clicked ' + (clicki++ || '')
+    })
+
+    const toggle = hpage.querySelector('#theme-toggle')
+    const sunIcon = hpage.querySelector('#theme-icon-sun')
+    const moonIcon = hpage.querySelector('#theme-icon-moon')
+    const themeLabel = hpage.querySelector('#theme-label')
+    const themeStyle = document.getElementById('canvas-style')
+    let dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    function applyTheme() {
+        themeStyle.textContent = themeStyle.textContent.replace(
+            /color-scheme:\s*[^;]+;/,
+            `color-scheme: ${dark ? 'dark' : 'light'};`
+        )
+        sunIcon.style.display = dark ? 'inline' : 'none'
+        moonIcon.style.display = dark ? 'none' : 'inline'
+        themeLabel.textContent = dark ? 'Light' : 'Dark'
+        if (window.__HTML_IN_CANVAS_POLYFILL__) {
+            getHtmlRenderer().invalidatePageStylesCss()
+        }
+        threeCanvas.requestPaint()
+    }
+    applyTheme()
+    toggle.addEventListener('click', () => {
+        dark = !dark
+        applyTheme()
+    })
+</script>
+</body>
+</html>

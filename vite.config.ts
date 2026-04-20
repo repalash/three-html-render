@@ -12,6 +12,10 @@ export default defineConfig({
             entry: {
                 'polyfill.module': resolve(__dirname, 'src/htmlInCanvasPolyfill.ts'),
                 renderer: resolve(__dirname, 'src/threeHTMLRenderer.ts'),
+                'html-texture': resolve(__dirname, 'src/htmlTexture.ts'),
+                'interaction-manager': resolve(__dirname, 'src/interactionManager.ts'),
+                'interaction-manager-standalone': resolve(__dirname, 'src/interactionManagerStandalone.ts'),
+                'raycast-interaction-manager': resolve(__dirname, 'src/raycastInteractionManager.ts'),
             },
             formats: ['es'],
             fileName: (_format, entryName) => {
