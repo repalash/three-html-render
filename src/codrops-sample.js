@@ -94,7 +94,7 @@ export function sketch({ canvas }){
 
     const textureLoader = new THREE.TextureLoader();
 
-    const bgTexture = textureLoader.load("/texture.jpg");
+    const bgTexture = textureLoader.load("../texture.jpg");
     const bgGeometry = new THREE.PlaneGeometry(5, 5);
     const bgMaterial = new THREE.MeshBasicMaterial({ map: bgTexture });
     const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
@@ -108,7 +108,7 @@ export function sketch({ canvas }){
         }
     );
 
-    const normalMapTexture = textureLoader.load("/normal.jpg");
+    const normalMapTexture = textureLoader.load("../normal.jpg");
     normalMapTexture.wrapS = THREE.RepeatWrapping;
     normalMapTexture.wrapT = THREE.RepeatWrapping;
     normalMapTexture.repeat.set(options.normalRepeat, options.normalRepeat);
@@ -143,7 +143,7 @@ export function sketch({ canvas }){
     gltfLoader.setDRACOLoader(dracoLoader);
 
     // Load dragon GLTF model
-    gltfLoader.load("/dragon2.glb", (gltf) => {
+    gltfLoader.load("../dragon2.glb", (gltf) => {
         // Try to find a mesh named "Dragon", or use the first mesh in the scene
         let dragon = gltf.scene.children.find((child) => child.name === "Dragon");
 
