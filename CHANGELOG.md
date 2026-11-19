@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - three.js r185–r187 `HTMLTexture` never uploaded with the polyfill (e.g. the threejs.org `*_materials_texture_html` examples in Firefox/Safari): they call the Chromium 150+ `texElementImage2D(target, internalformat, element)` form, which threw "unexpected argument count 3".
 - Legacy `texElementImage2D` / `copyElementImageToTexture` no longer throw before the first snapshot (three.js r184–r187 don't catch it, which stopped `WebGPURenderer`'s WebGL fallback from rendering); they request a paint and skip the upload.
-- Legacy `texElementImage2D` into immutable storage (three.js r184–r187 `WebGPURenderer` WebGL fallback) copies with `texSubImage2D` instead of failing.
+- Legacy `texElementImage2D` into immutable storage (three.js r184–r187 `WebGPURenderer` WebGL fallback) copies with `texSubImage2D`, scaled to the allocated size, instead of failing. The polyfill records `texStorage2D` sizes for this.
 - Texture flipY on the `texElementImage2D` upload path (was inheriting stray GL state).
 - Global regex `lastIndex` bug in the pseudo-class rewriter.
 - `selectionchange` listener leak on `document`.

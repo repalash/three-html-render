@@ -327,7 +327,24 @@ function patchWebGLContext() {
             configurable: true, writable: true, value: texElementImage2D,
         })
     }
+    // Record immutable 2D storage sizes (WebGL2 can't query them), so legacy
+    // texElementImage2D can copy into storage allocated by three.js r184–r187.
+    if (typeof WebGL2RenderingContext !== 'undefined') {
+        const origTexStorage2D = WebGL2RenderingContext.prototype.texStorage2D
+        definePatchedProperty(WebGL2RenderingContext.prototype, 'texStorage2D', {
+            configurable: true, writable: true,
+            value: function (this: WebGL2RenderingContext, target: number, levels: number, internalformat: number, width: number, height: number) {
+                origTexStorage2D.call(this, target, levels, internalformat, width, height)
+                if (target === this.TEXTURE_2D) {
+                    const tex = this.getParameter(this.TEXTURE_BINDING_2D) as WebGLTexture | null
+                    if (tex) immutableSizes.set(tex, [width, height])
+                }
+            },
+        })
+    }
 }
+
+const immutableSizes = new WeakMap<WebGLTexture, [number, number]>()
 
 interface WebGLCopyElementImageConfig {
     sx?: number
@@ -414,11 +431,13 @@ function texElementImage2D(
 
     // three.js r184–r187's WebGPURenderer WebGL fallback allocates immutable
     // storage (texStorage2D) at the element's offsetWidth × offsetHeight before
-    // calling this, so texImage2D would fail. Copy into that storage instead.
+    // calling this, so texImage2D would fail. Copy into that storage instead,
+    // scaled to its size (the element may have resized since).
     const gl2 = this as unknown as WebGL2RenderingContext
     if (typeof WebGL2RenderingContext !== 'undefined' && this instanceof WebGL2RenderingContext
-        && gl2.getTexParameter(target, gl2.TEXTURE_IMMUTABLE_FORMAT)) {
-        const w = Math.max(1, element.offsetWidth), h = Math.max(1, element.offsetHeight)
+        && target === gl2.TEXTURE_2D && gl2.getTexParameter(target, gl2.TEXTURE_IMMUTABLE_FORMAT)) {
+        const tex = gl2.getParameter(gl2.TEXTURE_BINDING_2D) as WebGLTexture | null
+        const [w, h] = (tex && immutableSizes.get(tex)) || [Math.max(1, element.offsetWidth), Math.max(1, element.offsetHeight)]
         let image: HTMLCanvasElement = bitmap
         if (bitmap.width !== w || bitmap.height !== h) {
             image = getResizeScratchCanvas(w, h)
