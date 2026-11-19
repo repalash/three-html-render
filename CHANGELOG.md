@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `canvas.getElementImageDefaultSize()`, `updateElementGeometry()`, `clearElementGeometry()` and 1-argument `getElementTransform()`.
   - `drawElementImage()` source-rect overloads and `DrawElementImageOptions`. On `content="drawable"` canvases it returns `undefined` and keeps the element's DOM geometry in sync, unless `preserveElementGeometry` is set.
   - `captureElementImage()` snapshots are accepted wherever the spec takes an `ElementImage`.
-- Legacy `texElementImage2D(target, internalformat, element)` and `copyElementImageToTexture({source}, {destination, width, height})` forms (Chromium 150–154).
+- Legacy `copyElementImageToTexture({source}, {destination, width, height})` form (Chromium 150–154).
 - `HTMLTexture` — drop-in replacement for `THREE.HTMLTexture`; re-exports the native class on three.js ≥ 0.184, falls back to `captureElementImage` + standard texture upload on older three.js.
 - `InteractionManager` — port of `three/addons/interaction/InteractionManager.js` that works with both the native `HTMLTexture` and the fallback.
 - `RaycastInteractionManager` — single-element overlay that works on every face of a box and on curved surfaces (raycast UV → translate element under pointer).
@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `examples/c64/` demo.
 
 ### Fixed
+- three.js r185–r187 `HTMLTexture` never uploaded with the polyfill (e.g. the threejs.org `*_materials_texture_html` examples in Firefox/Safari): they call the Chromium 150+ `texElementImage2D(target, internalformat, element)` form, which threw "unexpected argument count 3".
+- Legacy `texElementImage2D` / `copyElementImageToTexture` no longer throw before the first snapshot (three.js r184–r187 don't catch it, which stopped `WebGPURenderer`'s WebGL fallback from rendering); they request a paint and skip the upload.
+- Legacy `texElementImage2D` into immutable storage (three.js r184–r187 `WebGPURenderer` WebGL fallback) copies with `texSubImage2D` instead of failing.
 - Texture flipY on the `texElementImage2D` upload path (was inheriting stray GL state).
 - Global regex `lastIndex` bug in the pseudo-class rewriter.
 - `selectionchange` listener leak on `document`.

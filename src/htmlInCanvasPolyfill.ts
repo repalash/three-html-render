@@ -366,6 +366,18 @@ function texElementSubImage2D(
     this.texSubImage2D(target, level, xoffset, yoffset, this.RGBA, this.UNSIGNED_BYTE, image)
 }
 
+// three.js r184–r187 call the legacy upload methods without try/catch, so a
+// missing snapshot (first frame) must not throw: it would abort the render
+// loop. Skip the upload and ask for a paint; three.js re-uploads on `paint`.
+function legacySnapshot(element: unknown, api: string): HTMLCanvasElement | null {
+    const el = resolveElement(element, api)
+    const snap = findSnapshot(el)
+    if (snap) return snap.bitmap
+    const canvas = parentOverrides.get(el) as (HTMLCanvasElement & {requestPaint?: () => void}) | undefined
+    canvas?.requestPaint?.()
+    return null
+}
+
 // Legacy (Chromium 138–154): allocates and uploads in one call.
 function texElementImage2D(
     this: WebGLRenderingContext,
@@ -397,7 +409,28 @@ function texElementImage2D(
         throw new TypeError(`texElementImage2D: unexpected argument count ${3 + rest.length}`)
     }
 
-    const {bitmap} = requireSnapshot(element, 'texElementImage2D')
+    const bitmap = legacySnapshot(element, 'texElementImage2D')
+    if (!bitmap) return
+
+    // three.js r184–r187's WebGPURenderer WebGL fallback allocates immutable
+    // storage (texStorage2D) at the element's offsetWidth × offsetHeight before
+    // calling this, so texImage2D would fail. Copy into that storage instead.
+    const gl2 = this as unknown as WebGL2RenderingContext
+    if (typeof WebGL2RenderingContext !== 'undefined' && this instanceof WebGL2RenderingContext
+        && gl2.getTexParameter(target, gl2.TEXTURE_IMMUTABLE_FORMAT)) {
+        const w = Math.max(1, element.offsetWidth), h = Math.max(1, element.offsetHeight)
+        let image: HTMLCanvasElement = bitmap
+        if (bitmap.width !== w || bitmap.height !== h) {
+            image = getResizeScratchCanvas(w, h)
+            const ctx = image.getContext('2d')!
+            ctx.clearRect(0, 0, w, h)
+            ctx.imageSmoothingEnabled = true
+            ctx.imageSmoothingQuality = 'high'
+            ctx.drawImage(bitmap, 0, 0, w, h)
+        }
+        this.texSubImage2D(target, level, 0, 0, this.RGBA, this.UNSIGNED_BYTE, image)
+        return
+    }
     this.texImage2D(target, level, internalformat, format, type, bitmap)
 }
 
@@ -482,7 +515,8 @@ function copyElementImageToTexture(
         )
     }
 
-    const {bitmap} = requireSnapshot(element, 'copyElementImageToTexture')
+    const bitmap = legacySnapshot(element, 'copyElementImageToTexture')
+    if (!bitmap) return
 
     if (width === 0) width = bitmap.width
     if (height === 0) height = bitmap.height
@@ -567,7 +601,8 @@ function updateElementGeometry(
         warnedCanvasClip = true
         console.warn('[html-in-canvas polyfill] updateElementGeometry: canvasClip is not implemented, ignoring')
     }
-    applyElementGeometry(element, DOMMatrix.fromMatrix(options.canvasTransform ?? {}))
+    // Like native: options without canvasTransform keep the current transform.
+    if (options.canvasTransform) applyElementGeometry(element, DOMMatrix.fromMatrix(options.canvasTransform))
 }
 
 function clearElementGeometry(
@@ -599,7 +634,7 @@ function getElementImageDefaultSize(
 function patchCanvasElement() {
     definePatchedProperty(HTMLCanvasElement.prototype, 'layoutSubtree', {
         configurable: true,
-        get(this: HTMLCanvasElement) { return isDrawableCanvas(this) },
+        get(this: HTMLCanvasElement) { return this.hasAttribute('layoutsubtree') },
         set(this: HTMLCanvasElement, v: boolean) {
             if (v) this.setAttribute('layoutsubtree', '')
             else this.removeAttribute('layoutsubtree')
