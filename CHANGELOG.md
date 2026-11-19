@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - Unreleased
 
 ### Added
+- Chromium 155+ HTML-in-Canvas API ([WICG #174](https://github.com/WICG/html-in-canvas/issues/174), [#179](https://github.com/WICG/html-in-canvas/issues/179)), as used by three.js r188 (mrdoob/three.js#34732):
+  - `<canvas content="drawable">` activates the polyfill (`layoutsubtree` still works); `HTMLCanvasElement.content` reflects it.
+  - `WebGLRenderingContext.texElementSubImage2D(target, level, xoffset, yoffset, element, {sx, sy, swidth, sheight, width, height})`.
+  - `GPUQueue.drawElementImageToTexture({source, sourceX, sourceY, sourceWidth, sourceHeight}, {texture, size, …})`.
+  - `canvas.getElementImageDefaultSize()`, `updateElementGeometry()`, `clearElementGeometry()` and 1-argument `getElementTransform()`.
+  - `drawElementImage()` source-rect overloads and `DrawElementImageOptions`. On `content="drawable"` canvases it returns `undefined` and keeps the element's DOM geometry in sync, unless `preserveElementGeometry` is set.
+  - `captureElementImage()` snapshots are accepted wherever the spec takes an `ElementImage`.
+- Legacy `texElementImage2D(target, internalformat, element)` and `copyElementImageToTexture({source}, {destination, width, height})` forms (Chromium 150–154).
 - `HTMLTexture` — drop-in replacement for `THREE.HTMLTexture`; re-exports the native class on three.js ≥ 0.184, falls back to `captureElementImage` + standard texture upload on older three.js.
 - `InteractionManager` — port of `three/addons/interaction/InteractionManager.js` that works with both the native `HTMLTexture` and the fallback.
 - `RaycastInteractionManager` — single-element overlay that works on every face of a box and on curved surfaces (raycast UV → translate element under pointer).
@@ -22,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Browser-extension coexistence: a page's own polyfill install cleanly supersedes the extension's.
 
 ### Changed
+- `InteractionManager`, `RaycastInteractionManager` and `InteractionManagerStandalone` position elements with `canvas.updateElementGeometry()` when available, falling back to a CSS transform.
 - Package: `three` removed from `devDependencies` (peer dep kept). Demos load three from CDN via `<script type="importmap">`. A `html-importmap-sync` Vite plugin mirrors the map at resolve time for `npm run dev`.
 - `HtmlOverlayRendererStandalone` → `InteractionManagerStandalone` (file, class, export path all renamed).
 - Bumped `@types/three` to `^0.184.0`.

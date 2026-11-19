@@ -1,6 +1,7 @@
 import {Raycaster, Vector2} from 'three'
 import type {Camera, Material, Mesh, Object3D, WebGLRenderer} from 'three'
 import type {HTMLTextureLike} from './htmlTexture'
+import {setElementCanvasTransform} from './elementGeometry'
 
 /**
  * Keeps a single HTML element aligned with the 3D surface under the pointer
@@ -103,7 +104,7 @@ export class RaycastInteractionManager {
         element.style.position = 'absolute'
         element.style.left = '0'
         element.style.top = '0'
-        element.style.transform = `translate(${mouseX - texX}px, ${mouseY - texY}px)`
+        setElementCanvasTransform(canvas, element, new DOMMatrix().translate(mouseX - texX, mouseY - texY))
     }
 
     private _parkAllElements(): void {
@@ -114,7 +115,7 @@ export class RaycastInteractionManager {
     }
 
     private _parkElement(el: HTMLElement): void {
-        el.style.transform = 'translate(-99999px, 0)'
+        setElementCanvasTransform(this.element, el, new DOMMatrix().translate(-99999, 0))
     }
 
     private _getElement(obj: Object3D): HTMLElement | null {
