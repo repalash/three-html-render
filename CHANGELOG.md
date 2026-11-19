@@ -22,12 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `InteractionManagerStandalone` — matrix3d overlay for raw WebGL / WebGPU / 2D apps (no three.js dependency).
 - New package subpath exports for each helper above.
 - Landing page (`index.html`) listing every demo with a hero preview of the dragon showcase.
-- Demos: `three-html`, `three-html-raycast`, `three-html-webgpu`, `three-html-webgpu-raycast`, `three-html-legacy`, `three-dragon`.
+- Demos: `three-html`, `three-html-raycast`, `three-html-webgpu`, `three-html-webgpu-raycast`, `three-html-legacy`, `three-dragon`, `focus-ring`, `webxr-vr`, `webxr-ar`.
 - CSS pseudo-class rendering: `:hover`, `:focus`, `:active`, `:focus-visible`, `:focus-within` via class rewriting into the rasterized SVG.
 - Baseline hover / active styles for native form controls (adapts to light/dark mode).
 - Input caret rendering with blink animation, text-selection highlighting for `<input>` / `<textarea>`, page-level text-selection highlighting.
 - Mirror-div measurement for accurate multi-line textarea caret positioning.
 - Browser-extension coexistence: a page's own polyfill install cleanly supersedes the extension's.
+- Canvas children have fractional vertical dimensions floored when attached, so the live DOM matches the rasterized snapshot (avoids sub-pixel drift between texture and hit-testing). Set `window.__HIC_MUTATE_DOM__ = false` to opt out.
 
 ### Changed
 - `InteractionManager`, `RaycastInteractionManager` and `InteractionManagerStandalone` position elements with `canvas.updateElementGeometry()` when available, falling back to a CSS transform.
@@ -49,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing `fontVariant` and `direction` in text measurement.
 - `lineHeight` unitless value incorrectly treated as pixels.
 - `focus-ring.html` script-order race (inline non-module script ran before the deferred polyfill-install module script).
+- `getElementTransform` / `drawElementImage` treated a `transform-origin` of `0` as unset and pivoted around the element centre.
+- Calling `addEventListener` on a canvas right after setting its attribute missed the pointer-event forwarding (raced the async MutationObserver).
 
 ## [0.1.0] - 2026-04-10
 
