@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Jelly slider</title>
   <!-- html-in-canvas polyfill: installs `onpaint`, `requestPaint`,
-       `drawElementImage`, `texElementImage2D`, `getElementTransform`,
-       and the WebGPU `copyElementImageToTexture` patch. Must import
-       and install BEFORE the jelly-slider main bundle runs, so the
-       bundle sees patched prototypes when it grabs `canvas.onpaint`
-       and `device.queue.copyElementImageToTexture`. -->
+       `updateElementGeometry` and the WebGPU `drawElementImageToTexture`
+       patch where the browser lacks HTML-in-Canvas. Must import and
+       install BEFORE the jelly-slider main bundle runs, so the bundle
+       sees patched prototypes when it grabs `canvas.onpaint` and
+       `device.queue.drawElementImageToTexture`.
+       assets/index-B6QxTntl.js is a prebuilt bundle; its `onpaint`
+       handler was edited by hand for the Chromium 155+ API
+       (drawElementImageToTexture + updateElementGeometry). -->
   <script type="module">
     import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
     installHtmlInCanvasPolyfill();
@@ -91,9 +94,9 @@
   }
 </style>
 
-<canvas layoutsubtree>
-  <input id="slider" type="range" min="0" max="100" step="1" value="100" />
-  <div id="value" inert="true"></div>
+<canvas content="drawable">
+  <input id="slider" drawable type="range" min="0" max="100" step="1" value="100" />
+  <div id="value" drawable inert="true"></div>
 </canvas>
 <div id="attribution">
   This is based on Software Mansion's <a href="https://github.com/software-mansion/TypeGPU/tree/main/apps/typegpu-docs/src/examples/rendering/jelly-slider" target="_blank">Jelly Slider</a>, which was inspired by the work of <a href="https://x.com/cerpow/status/1964953851603358112" target="_blank">Voicu Apostol</a>.

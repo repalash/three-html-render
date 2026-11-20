@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Canvas children have fractional vertical dimensions floored when attached, so the live DOM matches the rasterized snapshot (avoids sub-pixel drift between texture and hit-testing). Set `window.__HIC_MUTATE_DOM__ = false` to opt out.
 
 ### Changed
+- Demos use the Chromium 155+ API (`content="drawable"`, `drawable`, `texElementSubImage2D`, `drawElementImageToTexture`, `updateElementGeometry`) and run natively on Chrome 155+ as well as through the polyfill. Demos on three.js r184–r187 (whose `HTMLTexture` needs the pre-155 API) force the polyfill when the browser lacks that API. The non-AR preview of `webxr-ar` is now interactive.
+- `ThreeHTMLRenderer` (deprecated) uploads with `texElementSubImage2D` when available, so it works natively on Chromium 155+ with any three.js version, and positions elements with `updateElementGeometry`.
 - `InteractionManager`, `RaycastInteractionManager` and `InteractionManagerStandalone` position elements with `canvas.updateElementGeometry()` when available, falling back to a CSS transform.
 - Package: `three` removed from `devDependencies` (peer dep kept). Demos load three from CDN via `<script type="importmap">`. A `html-importmap-sync` Vite plugin mirrors the map at resolve time for `npm run dev`.
 - `HtmlOverlayRendererStandalone` → `InteractionManagerStandalone` (file, class, export path all renamed).
@@ -44,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `examples/c64/` demo.
 
 ### Fixed
+- On browsers that natively know `content="drawable"` (Chromium 155+, with the polyfill forced), the polyfill's overlay could end up under the canvas and stop receiving pointer events; it is now kept after its canvas.
 - three.js r185–r187 `HTMLTexture` never uploaded with the polyfill (e.g. the threejs.org `*_materials_texture_html` examples in Firefox/Safari): they call the Chromium 150+ `texElementImage2D(target, internalformat, element)` form, which threw "unexpected argument count 3".
 - Legacy `texElementImage2D` / `copyElementImageToTexture` no longer throw before the first snapshot (three.js r184–r187 don't catch it, which stopped `WebGPURenderer`'s WebGL fallback from rendering); they request a paint and skip the upload.
 - Legacy `texElementImage2D` into immutable storage (three.js r184–r187 `WebGPURenderer` WebGL fallback) copies with `texSubImage2D`, scaled to the allocated size, instead of failing. The polyfill records `texStorage2D` sizes for this.

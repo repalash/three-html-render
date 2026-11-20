@@ -92,9 +92,9 @@
 			 * (three.js/examples/webgl_materials_texture_html.html)
 			 *
 			 *   1. installHtmlInCanvasPolyfill() runs whenever the browser
-			 *      does not expose the HTML-in-Canvas API natively.
-			 *   2. `renderer.domElement` needs the `layoutsubtree` attribute
-			 *      (a WICG API requirement). three.js's HTMLTexture appends
+			 *      lacks the pre-Chromium 155 API three.js r184–r187 use.
+			 *   2. `renderer.domElement` gets `content="drawable"` (a WICG
+			 *      API requirement; three.js r188+ sets it itself). three.js's HTMLTexture appends
 			 *      the element to the canvas and wires up paint events for us.
 			 *   3. Replace `InteractionManager` with `RaycastInteractionManager`.
 			 *      three.js's manager computes a matrix3d per mesh — one
@@ -114,10 +114,14 @@
 			import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
 			import { RaycastInteractionManager } from '/src/raycastInteractionManager.ts';
 
-			if ( ! ( 'requestPaint' in HTMLCanvasElement.prototype ) ) {
+			// three.js r184–r187's HTMLTexture uses the pre-Chromium 155 HTML-in-Canvas
+			// API (layoutsubtree, texElementImage2D), which browsers no longer ship, so
+			// use the polyfill unless the browser still has it. On three.js r188+ this
+			// is just: if ( ! ( 'requestPaint' in HTMLCanvasElement.prototype ) ).
+			if ( ! ( 'texElementImage2D' in WebGL2RenderingContext.prototype ) ) {
 
-				installHtmlInCanvasPolyfill();
-				info.innerHTML += '<br><a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a> not available. Using <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>.';
+				installHtmlInCanvasPolyfill( { force: true } );
+				info.innerHTML += '<br>Using the <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>: this three.js version needs the pre-Chromium 155 <a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a>.';
 
 			}
 
@@ -128,7 +132,7 @@
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
-				renderer.domElement.setAttribute( 'layoutsubtree', '' );      // CHANGED
+				renderer.domElement.setAttribute( 'content', 'drawable' );    // CHANGED (three.js r188+ sets this itself)
 				renderer.toneMapping = THREE.NeutralToneMapping;
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );

@@ -87,8 +87,9 @@
 
 		<script type="module">
 			// Port of three.js's webgl_materials_texture_html. The two
-			// deltas: install the polyfill when the native API is absent,
-			// and add `layoutsubtree` to the renderer's canvas.
+			// deltas: install the polyfill (three.js r184–r187 need the
+			// pre-Chromium 155 API), and add `content="drawable"` to the
+			// renderer's canvas.
 
 			import * as THREE from 'three';
 			import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -96,10 +97,14 @@
 			import { InteractionManager } from 'three/addons/interaction/InteractionManager.js';
 			import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
 
-			if ( ! ( 'requestPaint' in HTMLCanvasElement.prototype ) ) {
+			// three.js r184–r187's HTMLTexture uses the pre-Chromium 155 HTML-in-Canvas
+			// API (layoutsubtree, texElementImage2D), which browsers no longer ship, so
+			// use the polyfill unless the browser still has it. On three.js r188+ this
+			// is just: if ( ! ( 'requestPaint' in HTMLCanvasElement.prototype ) ).
+			if ( ! ( 'texElementImage2D' in WebGL2RenderingContext.prototype ) ) {
 
-				installHtmlInCanvasPolyfill();
-				info.innerHTML += '<br><a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a> not available. Using <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>.';
+				installHtmlInCanvasPolyfill( { force: true } );
+				info.innerHTML += '<br>Using the <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>: this three.js version needs the pre-Chromium 155 <a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a>.';
 
 			}
 
@@ -110,7 +115,7 @@
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
-				renderer.domElement.setAttribute( 'layoutsubtree', '' );      // CHANGED
+				renderer.domElement.setAttribute( 'content', 'drawable' );    // CHANGED (three.js r188+ sets this itself)
 				renderer.toneMapping = THREE.NeutralToneMapping;
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );

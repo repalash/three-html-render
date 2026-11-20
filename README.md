@@ -243,6 +243,16 @@ Drop-in replacement for `THREE.HTMLTexture` (three.js >= 0.184).
 
 Requirement on the fallback path: append the element to a `<canvas content="drawable">` **before** constructing the texture. (Native `HTMLTexture` auto-appends from inside three.js's upload branch; we can't hook that on older versions.)
 
+**three.js r184–r187 on Chromium 155+:** these versions use the pre-155 API (`layoutsubtree`, `texElementImage2D`), which Chromium 155+ no longer ships, so their `HTMLTexture` only works through the polyfill there. Force it when the browser lacks that API (r188+ uses the current API and needs only the usual check):
+
+```js
+if ( ! ( 'texElementImage2D' in WebGL2RenderingContext.prototype ) ) {
+  installHtmlInCanvasPolyfill( { force: true } )
+}
+```
+
+The same applies to the fallback path on three.js < 0.184, which needs `captureElementImage()` to return a canvas.
+
 ### `InteractionManager`
 
 Port of `three/addons/interaction/InteractionManager.js`. Positions the HTML element of each registered mesh's `HTMLTexture` once per frame, so the browser dispatches pointer events natively to the real HTML. Uses `canvas.updateElementGeometry()` when available (Chromium 155+ or this polyfill), and a CSS `matrix3d` transform otherwise.
@@ -350,7 +360,7 @@ The HTML-in-Canvas API is a [WICG proposal](https://github.com/WICG/html-in-canv
 | [webxr-ar](examples/webxr-ar.html) | [Live](https://repalash.com/three-html-render/examples/webxr-ar.html) | AR panel anchored to a real-world surface (requires ARCore). |
 | [focus-ring](examples/focus-ring.html) | [Live](https://repalash.com/three-html-render/examples/focus-ring.html) | WebGL focus-glow shader reading from the HTML texture. By Matt Rothenberg. |
 | [webGL-text-input](examples/webGL-text-input.html) | [Live](https://repalash.com/three-html-render/examples/webGL-text-input.html) | Multi-face cube with `InteractionManagerStandalone` — no three.js. |
-| [jelly-slider](examples/webgpu-jelly-slider/index.html) | [Live](https://repalash.com/three-html-render/examples/webgpu-jelly-slider/index.html) | WebGPU sample using `copyElementImageToTexture`. |
+| [jelly-slider](examples/webgpu-jelly-slider/index.html) | [Live](https://repalash.com/three-html-render/examples/webgpu-jelly-slider/index.html) | WebGPU sample using `drawElementImageToTexture`. |
 | [webGL](examples/webGL.html) | [Live](https://repalash.com/three-html-render/examples/webGL.html) | Basic gl-matrix WebGL scene. |
 | [complex-text](examples/complex-text.html) | [Live](https://repalash.com/three-html-render/examples/complex-text.html) | RTL, vertical writing modes, emoji, inline SVG / images. |
 | [text-input](examples/text-input.html) | [Live](https://repalash.com/three-html-render/examples/text-input.html) | 2D form with caret and selection. |

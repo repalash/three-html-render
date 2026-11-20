@@ -100,10 +100,14 @@
 			import { installHtmlInCanvasPolyfill } from '/src/htmlInCanvasPolyfill.ts';
 			import { RaycastInteractionManager } from '/src/raycastInteractionManager.ts';
 
-			if ( ! ( 'requestPaint' in HTMLCanvasElement.prototype ) ) {
+			// three.js r184–r187's HTMLTexture uses the pre-Chromium 155 HTML-in-Canvas
+			// API (layoutsubtree, texElementImage2D), which browsers no longer ship, so
+			// use the polyfill unless the browser still has it. On three.js r188+ this
+			// is just: if ( ! ( 'requestPaint' in HTMLCanvasElement.prototype ) ).
+			if ( ! ( 'texElementImage2D' in WebGL2RenderingContext.prototype ) ) {
 
-				installHtmlInCanvasPolyfill();
-				info.innerHTML += '<br><a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a> not available. Using <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>.';
+				installHtmlInCanvasPolyfill( { force: true } );
+				info.innerHTML += '<br>Using the <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>: this three.js version needs the pre-Chromium 155 <a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a>.';
 
 			}
 
@@ -114,7 +118,7 @@
 			async function init() {
 
 				renderer = new THREE.WebGPURenderer( { antialias: true } );
-				renderer.domElement.setAttribute( 'layoutsubtree', '' );      // CHANGED
+				renderer.domElement.setAttribute( 'content', 'drawable' );    // CHANGED (three.js r188+ sets this itself)
 				await renderer.init();
 
 				renderer.toneMapping = THREE.NeutralToneMapping;

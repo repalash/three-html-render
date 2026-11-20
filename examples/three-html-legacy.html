@@ -100,10 +100,13 @@
 			import { HTMLTexture } from '/src/htmlTexture.ts?v=legacy';
 			import { InteractionManager } from '/src/interactionManager.ts?v=legacy';
 
-			if ( ! ( 'requestPaint' in HTMLCanvasElement.prototype ) ) {
+			// The HTMLTexture fallback reads snapshots with captureElementImage(), which
+			// returns a canvas only in the polyfill, so use it unless the browser still
+			// has the pre-Chromium 155 API this three.js version was written against.
+			if ( ! ( 'texElementImage2D' in WebGL2RenderingContext.prototype ) ) {
 
-				installHtmlInCanvasPolyfill();
-				info.innerHTML += '<br><a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a> not available. Using <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>.';
+				installHtmlInCanvasPolyfill( { force: true } );
+				info.innerHTML += '<br>Using the <a href="https://github.com/repalash/three-html-render" target="_blank">polyfill</a>: this three.js version needs the pre-Chromium 155 <a href="https://github.com/WICG/html-in-canvas" target="_blank">HTML-in-Canvas API</a>.';
 
 			}
 
@@ -114,7 +117,7 @@
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
-				renderer.domElement.setAttribute( 'layoutsubtree', '' );      // CHANGED
+				renderer.domElement.setAttribute( 'content', 'drawable' );    // CHANGED
 				renderer.toneMapping = THREE.NeutralToneMapping;
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );

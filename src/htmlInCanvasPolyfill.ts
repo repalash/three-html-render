@@ -984,6 +984,12 @@ function ensureState(canvas: HTMLCanvasElement): CanvasState | null {
     const observers: (MutationObserver | ResizeObserver)[] = []
 
     const positionHost = () => {
+        // Keep the host after its canvas in tree order. Browsers that natively
+        // know content="drawable" stack such a canvas like a positioned element,
+        // so a host created before the canvas was inserted would end up under
+        // it and never receive pointer events.
+        if (canvas.isConnected && (host.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING))
+            document.body.appendChild(host)
         const r = canvas.getBoundingClientRect()
         host.style.left = (r.left + window.scrollX + canvas.clientLeft) + 'px'
         host.style.top = (r.top + window.scrollY + canvas.clientTop) + 'px'

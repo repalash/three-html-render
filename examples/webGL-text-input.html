@@ -23,8 +23,8 @@
   form p { margin: 6px; }
 </style>
 
-<canvas id="gl-canvas" layoutsubtree="true">
-  <div id="draw_element">
+<canvas id="gl-canvas" content="drawable">
+  <div id="draw_element" drawable>
     <form id="demo-form" action="#" method="get">
       <fieldset>
         <legend>Spaceship Control Panel</legend>
@@ -156,10 +156,24 @@
     }
   }
 
+  // HTML-in-Canvas (Chromium 155+): texElementSubImage2D copies the element's
+  // snapshot into an existing texture, so (re)allocate the storage at the
+  // snapshot's default size first. Call it from the canvas `paint` handler.
+  function uploadElement(gl, texture, element) {
+    const size = gl.canvas.getElementImageDefaultSize(element);
+    const width = Math.ceil(size.width), height = Math.ceil(size.height);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    if (texture.width !== width || texture.height !== height) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      texture.width = width;
+      texture.height = height;
+    }
+    gl.texElementSubImage2D(gl.TEXTURE_2D, 0, 0, 0, element, {width, height});
+  }
+
   function loadTexture(gl) {
     const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texElementImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, window.draw_element);
+    uploadElement(gl, texture, window.draw_element);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -230,9 +244,7 @@
       main();
       return;
     }
-    const {gl} = render_context;
-    gl.deleteTexture(render_context.texture);
-    render_context.texture = loadTexture(gl);
+    uploadElement(render_context.gl, render_context.texture, window.draw_element);
   };
   canvas.requestPaint();
   document.fonts.ready.then(() => canvas.requestPaint());

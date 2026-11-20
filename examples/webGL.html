@@ -23,8 +23,8 @@
   }
 </style>
 
-<canvas id="gl-canvas" layoutsubtree="true">
-  <div id="draw_element" inert>
+<canvas id="gl-canvas" content="drawable">
+  <div id="draw_element" drawable inert>
     Hello world!<br>I'm multi-line, <b>formatted</b>,
     rotated text with emoji (&#128512;), RTL text
     <span dir=rtl>من فارسی صحبت میکنم</span>,
@@ -51,17 +51,24 @@
   let deltaTime = 0;
   let render_context = null;
 
+  // HTML-in-Canvas (Chromium 155+): texElementSubImage2D copies the element's
+  // snapshot into an existing texture, so (re)allocate the storage at the
+  // snapshot's default size first. Call it from the canvas `paint` handler.
+  function uploadElement(gl, texture, element) {
+    const size = gl.canvas.getElementImageDefaultSize(element);
+    const width = Math.ceil(size.width), height = Math.ceil(size.height);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    if (texture.width !== width || texture.height !== height) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      texture.width = width;
+      texture.height = height;
+    }
+    gl.texElementSubImage2D(gl.TEXTURE_2D, 0, 0, 0, element, {width, height});
+  }
+
   function loadTexture(gl) {
     const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-
-    const level = 0;
-    const internalFormat = gl.RGBA;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-
-    gl.texElementImage2D(gl.TEXTURE_2D, level, internalFormat,
-                         srcFormat, srcType, window.draw_element);
+    uploadElement(gl, texture, window.draw_element);
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -139,9 +146,7 @@
   const canvas = document.querySelector('#gl-canvas');
   canvas.onpaint = () => {
     if (!render_context) { main(); return; }
-    const gl = render_context.gl;
-    gl.bindTexture(gl.TEXTURE_2D, render_context.texture);
-    gl.texElementImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, window.draw_element);
+    uploadElement(render_context.gl, render_context.texture, window.draw_element);
   };
   canvas.requestPaint();
   document.fonts.ready.then(() => canvas.requestPaint());

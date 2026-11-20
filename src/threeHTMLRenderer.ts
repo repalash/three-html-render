@@ -39,6 +39,10 @@ export class ThreeHTMLRenderer {
         this._renderer = renderer;
         this._canvas = canvas;
 
+        // HTML-in-Canvas (Chromium 155+ / polyfill) opts the canvas in with content="drawable".
+        if ('content' in canvas && (canvas as any).content !== 'drawable' && !canvas.hasAttribute('layoutsubtree'))
+            canvas.setAttribute('content', 'drawable');
+
         (canvas as any).onpaint = () => {
             this._uploadTextures()
         }
@@ -46,6 +50,7 @@ export class ThreeHTMLRenderer {
 
     addObject(element: HTMLElement, mesh: Object3D): OverlayObject {
         element.style.pointerEvents = 'auto'
+        if (!element.hasAttribute('drawable')) element.setAttribute('drawable', '')
 
         // Stop event propagation so controls (e.g. OrbitControls) don't intercept
         for (const evt of ['pointerdown', 'pointerup', 'pointermove', 'click', 'wheel'] as const) {
@@ -71,8 +76,26 @@ export class ThreeHTMLRenderer {
         const canvas = this._canvas
         if (!renderer || !canvas) return
 
+        const gl = renderer.getContext() as any
+
         for (const {element, mesh} of this.overlayRenderer.objects) {
             let texture = this._textures.get(element)
+
+            // HTML-in-Canvas (Chromium 155+, or the polyfill): copy into a
+            // texture we allocate at the snapshot's default size. Works with
+            // any three.js version, unlike three r184–r187's HTMLTexture,
+            // which needs the pre-155 API.
+            if (typeof gl.texElementSubImage2D === 'function') {
+                if (!texture) {
+                    texture = new Texture()
+                    texture.minFilter = 1006 // LinearFilter
+                    texture.generateMipmaps = false
+                    this._textures.set(element, texture)
+                    this._assignTexture(mesh, texture)
+                }
+                this._uploadElement(renderer, gl, canvas, texture, element)
+                continue
+            }
 
             if (HTMLTextureClass) {
                 if (!texture) {
@@ -82,8 +105,6 @@ export class ThreeHTMLRenderer {
                 }
                 continue
             }
-
-            const gl = renderer.getContext() as any
 
             if ('texElementImage2D' in gl) {
                 if (!texture) {
@@ -125,6 +146,48 @@ export class ThreeHTMLRenderer {
                 texture.needsUpdate = true
             }
         }
+    }
+
+    private _uploadElement(renderer: WebGLRenderer, gl: any, canvas: HTMLCanvasElement, texture: Texture, element: HTMLElement) {
+        let size: {width: number, height: number}
+        try {
+            size = (canvas as any).getElementImageDefaultSize(element)
+        } catch {
+            return // not painted yet; the next paint event retries
+        }
+        const width = Math.ceil(size.width)
+        const height = Math.ceil(size.height)
+
+        const props = (renderer as any).properties.get(texture)
+        const state = (renderer as any).state
+        if (!props.__webglTexture) props.__webglTexture = gl.createTexture()
+
+        // Go through three's state cache where it exists so it stays in sync.
+        if (state?.bindTexture) state.bindTexture(gl.TEXTURE_2D, props.__webglTexture)
+        else gl.bindTexture(gl.TEXTURE_2D, props.__webglTexture)
+        const pixelStorei = (pname: number, value: number | boolean) =>
+            state?.pixelStorei ? state.pixelStorei(pname, value) : gl.pixelStorei(pname, value)
+        pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, texture.flipY)
+        pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, texture.premultiplyAlpha)
+
+        // Re-allocate only when the size changes; it resets the contents.
+        if (props.__htmlWidth !== width || props.__htmlHeight !== height) {
+            const internalFormat = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext ? gl.RGBA8 : gl.RGBA
+            gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+            props.__htmlWidth = width
+            props.__htmlHeight = height
+        }
+
+        try {
+            gl.texElementSubImage2D(gl.TEXTURE_2D, 0, 0, 0, element, {width, height})
+        } catch {
+            /* no paint record for the element yet */
+        }
+        props.__version = texture.version
     }
 
     private _assignTexture(mesh: Object3D, texture: Texture) {
