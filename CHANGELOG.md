@@ -8,20 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - Unreleased
 
 ### Added
+- Chromium 155+ HTML-in-Canvas API ([WICG #174](https://github.com/WICG/html-in-canvas/issues/174), [#179](https://github.com/WICG/html-in-canvas/issues/179)), as used by three.js r188 (mrdoob/three.js#34732):
+  - `<canvas content="drawable">` activates the polyfill (`layoutsubtree` still works); `HTMLCanvasElement.content` reflects it.
+  - `WebGLRenderingContext.texElementSubImage2D(target, level, xoffset, yoffset, element, {sx, sy, swidth, sheight, width, height})`.
+  - `GPUQueue.drawElementImageToTexture({source, sourceX, sourceY, sourceWidth, sourceHeight}, {texture, size, …})`.
+  - `canvas.getElementImageDefaultSize()`, `updateElementGeometry()`, `clearElementGeometry()` and 1-argument `getElementTransform()`.
+  - `drawElementImage()` source-rect overloads and `DrawElementImageOptions`. On `content="drawable"` canvases it returns `undefined` and keeps the element's DOM geometry in sync, unless `preserveElementGeometry` is set.
+  - `captureElementImage()` snapshots are accepted wherever the spec takes an `ElementImage`.
+- Legacy `copyElementImageToTexture({source}, {destination, width, height})` form (Chromium 150–154).
 - `HTMLTexture` — drop-in replacement for `THREE.HTMLTexture`; re-exports the native class on three.js ≥ 0.184, falls back to `captureElementImage` + standard texture upload on older three.js.
 - `InteractionManager` — port of `three/addons/interaction/InteractionManager.js` that works with both the native `HTMLTexture` and the fallback.
 - `RaycastInteractionManager` — single-element overlay that works on every face of a box and on curved surfaces (raycast UV → translate element under pointer).
 - `InteractionManagerStandalone` — matrix3d overlay for raw WebGL / WebGPU / 2D apps (no three.js dependency).
 - New package subpath exports for each helper above.
 - Landing page (`index.html`) listing every demo with a hero preview of the dragon showcase.
-- Demos: `three-html`, `three-html-raycast`, `three-html-webgpu`, `three-html-webgpu-raycast`, `three-html-legacy`, `three-dragon`.
+- Demos: `three-html`, `three-html-raycast`, `three-html-webgpu`, `three-html-webgpu-raycast`, `three-html-legacy`, `three-dragon`, `focus-ring`, `webxr-vr`, `webxr-ar`.
 - CSS pseudo-class rendering: `:hover`, `:focus`, `:active`, `:focus-visible`, `:focus-within` via class rewriting into the rasterized SVG.
 - Baseline hover / active styles for native form controls (adapts to light/dark mode).
 - Input caret rendering with blink animation, text-selection highlighting for `<input>` / `<textarea>`, page-level text-selection highlighting.
 - Mirror-div measurement for accurate multi-line textarea caret positioning.
 - Browser-extension coexistence: a page's own polyfill install cleanly supersedes the extension's.
+- Canvas children have fractional vertical dimensions floored when attached, so the live DOM matches the rasterized snapshot (avoids sub-pixel drift between texture and hit-testing). Set `window.__HIC_MUTATE_DOM__ = false` to opt out.
 
 ### Changed
+- Demos use the Chromium 155+ API (`content="drawable"`, `drawable`, `texElementSubImage2D`, `drawElementImageToTexture`, `updateElementGeometry`) and run natively on Chrome 155+ as well as through the polyfill. Demos on three.js r184–r187 (whose `HTMLTexture` needs the pre-155 API) force the polyfill when the browser lacks that API. The non-AR preview of `webxr-ar` is now interactive.
+- `ThreeHTMLRenderer` (deprecated) uploads with `texElementSubImage2D` when available, so it works natively on Chromium 155+ with any three.js version, and positions elements with `updateElementGeometry`.
+- `InteractionManager`, `RaycastInteractionManager` and `InteractionManagerStandalone` position elements with `canvas.updateElementGeometry()` when available, falling back to a CSS transform.
 - Package: `three` removed from `devDependencies` (peer dep kept). Demos load three from CDN via `<script type="importmap">`. A `html-importmap-sync` Vite plugin mirrors the map at resolve time for `npm run dev`.
 - `HtmlOverlayRendererStandalone` → `InteractionManagerStandalone` (file, class, export path all renamed).
 - Bumped `@types/three` to `^0.184.0`.
@@ -34,12 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `examples/c64/` demo.
 
 ### Fixed
+- On browsers that natively know `content="drawable"` (Chromium 155+, with the polyfill forced), the polyfill's overlay could end up under the canvas and stop receiving pointer events; it is now kept after its canvas.
+- three.js r185–r187 `HTMLTexture` never uploaded with the polyfill (e.g. the threejs.org `*_materials_texture_html` examples in Firefox/Safari): they call the Chromium 150+ `texElementImage2D(target, internalformat, element)` form, which threw "unexpected argument count 3".
+- Legacy `texElementImage2D` / `copyElementImageToTexture` no longer throw before the first snapshot (three.js r184–r187 don't catch it, which stopped `WebGPURenderer`'s WebGL fallback from rendering); they request a paint and skip the upload.
+- Legacy `texElementImage2D` into immutable storage (three.js r184–r187 `WebGPURenderer` WebGL fallback) copies with `texSubImage2D`, scaled to the allocated size, instead of failing. The polyfill records `texStorage2D` sizes for this.
 - Texture flipY on the `texElementImage2D` upload path (was inheriting stray GL state).
 - Global regex `lastIndex` bug in the pseudo-class rewriter.
 - `selectionchange` listener leak on `document`.
 - Missing `fontVariant` and `direction` in text measurement.
 - `lineHeight` unitless value incorrectly treated as pixels.
 - `focus-ring.html` script-order race (inline non-module script ran before the deferred polyfill-install module script).
+- `getElementTransform` / `drawElementImage` treated a `transform-origin` of `0` as unset and pivoted around the element centre.
+- Calling `addEventListener` on a canvas right after setting its attribute missed the pointer-event forwarding (raced the async MutationObserver).
 
 ## [0.1.0] - 2026-04-10
 

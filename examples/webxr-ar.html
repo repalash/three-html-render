@@ -208,7 +208,7 @@
   <button id="place-btn">Place Panel</button>
 </div>
 
-<canvas id="canvas" layoutsubtree>
+<canvas id="canvas" content="drawable">
   <div class="ar-card" id="ar-panel">
     <h2>Quick Settings</h2>
     <p class="subtitle">Configure your AR workspace</p>
@@ -377,10 +377,9 @@ renderer.setAnimationLoop((timestamp, frame) => {
 
   // Update
   canvas.requestPaint();
-  if (renderer.xr.isPresenting) {
-    // In AR, update overlay positioning for DOM interaction
-    htmlRenderer.update();
-  }
+  // Keep the panel's DOM box on the mesh (in AR and in the preview) so the
+  // browser hit-tests it where it is drawn.
+  htmlRenderer.update();
   renderer.render(scene, camera);
 });
 

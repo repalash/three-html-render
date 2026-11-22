@@ -1,5 +1,6 @@
 import {Matrix4, Vector3} from 'three'
 import type {Camera, Object3D} from 'three'
+import {setElementCanvasTransform} from './elementGeometry'
 
 const _pixelToLocal = new Matrix4()
 const _mvp = new Matrix4()
@@ -12,8 +13,9 @@ export interface OverlayObject {
 }
 
 /**
- * Positions HTML elements over their corresponding 3D meshes using a single
- * CSS matrix3d transform per element.
+ * Positions HTML elements over their corresponding 3D meshes, through
+ * `canvas.updateElementGeometry()` on the HTML-in-Canvas API (Chromium 155+ /
+ * polyfill) or a CSS matrix3d transform otherwise.
  *
  * Ported from Three.js InteractionManager (three/addons/interaction/InteractionManager.js).
  * Math: viewport × projection × view × world × pixelToLocal
@@ -70,7 +72,6 @@ export class HtmlOverlayRenderer {
             element.style.position = 'absolute'
             element.style.left = '0'
             element.style.top = '0'
-            element.style.transformOrigin = '0 0'
 
             const elemW = element.offsetWidth
             const elemH = element.offsetHeight
@@ -98,8 +99,8 @@ export class HtmlOverlayRenderer {
             // Viewport
             _mvp.premultiply(_viewport)
 
-            // Browser performs perspective divide (by w) when applying matrix3d.
-            element.style.transform = 'matrix3d(' + _mvp.elements.join(',') + ')'
+            // The browser performs the perspective divide (by w).
+            setElementCanvasTransform(canvas, element, new DOMMatrix(_mvp.elements))
         }
     }
 

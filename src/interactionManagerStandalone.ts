@@ -1,3 +1,5 @@
+import {setElementCanvasTransform} from './elementGeometry'
+
 export interface StandaloneObject {
     element: HTMLElement
     worldMatrix: Float32Array | number[]
@@ -89,7 +91,6 @@ export class InteractionManagerStandalone {
             element.style.position = 'absolute'
             element.style.left = '0'
             element.style.top = '0'
-            element.style.transformOrigin = '0 0'
 
             const elemW = element.offsetWidth
             const elemH = element.offsetHeight
@@ -119,7 +120,7 @@ export class InteractionManagerStandalone {
 
             element.style.pointerEvents = frontFacing ? 'auto' : 'none'
             element.style.display = frontFacing ? '' : 'none'
-            element.style.transform = 'matrix3d(' + Array.from(mvp.toFloat64Array()).join(',') + ')'
+            setElementCanvasTransform(canvas, element, mvp)
         }
     }
 

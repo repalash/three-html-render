@@ -1,6 +1,7 @@
 import {Matrix4, Vector3} from 'three'
 import type {Camera, Mesh, Object3D, WebGLRenderer} from 'three'
 import type {HTMLTextureLike} from './htmlTexture'
+import {setElementCanvasTransform} from './elementGeometry'
 
 const _pixelToLocal = new Matrix4()
 const _mvp = new Matrix4()
@@ -17,9 +18,10 @@ const _size = new Vector3()
  *   // in the animation loop:
  *   interactions.update()
  *
- * Positions the DOM element of each registered mesh's HTMLTexture using a
- * single CSS `matrix3d` transform per frame, so the browser dispatches
- * pointer events natively to the real HTML.
+ * Positions the DOM element of each registered mesh's HTMLTexture once per
+ * frame, so the browser dispatches pointer events natively to the real HTML:
+ * through `canvas.updateElementGeometry()` on the HTML-in-Canvas API
+ * (Chromium 155+ / polyfill), or a CSS `matrix3d` transform otherwise.
  *
  * Math matches three.js exactly: `viewport × projection × view × world × pixelToLocal`.
  *
@@ -87,7 +89,6 @@ export class InteractionManager {
             element.style.position = 'absolute'
             element.style.left = '0'
             element.style.top = '0'
-            element.style.transformOrigin = '0 0'
 
             const elemW = element.offsetWidth
             const elemH = element.offsetHeight
@@ -109,7 +110,8 @@ export class InteractionManager {
             _mvp.multiply(_pixelToLocal)
             _mvp.premultiply(_viewport)
 
-            element.style.transform = 'matrix3d(' + _mvp.elements.join(',') + ')'
+            // The browser performs the perspective divide (by w).
+            setElementCanvasTransform(canvas, element, new DOMMatrix(_mvp.elements))
         }
     }
 

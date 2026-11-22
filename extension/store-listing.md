@@ -17,12 +17,14 @@ This extension polyfills the experimental Chrome HTML-in-Canvas API on any
 Chromium browser, letting developers use the following APIs even before
 native support ships:
 
-- `canvas[layoutsubtree]` — declare a canvas whose HTML children can be rasterized
+- `canvas[content="drawable"]` — declare a canvas whose HTML children can be rasterized
 - `canvas.requestPaint()` / `canvas.onpaint` — request and react to paint cycles
 - `CanvasRenderingContext2D.drawElementImage(el, x, y)` — draw an HTML element into a 2D canvas
-- `WebGLRenderingContext.texElementImage2D(...)` — upload an HTML element as a WebGL texture
-- `GPUQueue.copyElementImageToTexture(...)` — upload an HTML element as a WebGPU texture
-- `canvas.getElementTransform(...)` / `canvas.captureElementImage(...)` — helpers
+- `WebGLRenderingContext.texElementSubImage2D(...)` — copy an HTML element into a WebGL texture
+- `GPUQueue.drawElementImageToTexture(...)` — copy an HTML element into a WebGPU texture
+- `canvas.updateElementGeometry(...)` — keep the element's hit-testing in sync with where it is drawn
+- `canvas.getElementImageDefaultSize(...)` / `canvas.captureElementImage(...)` — helpers
+- The earlier `layoutsubtree` / `texElementImage2D` / `copyElementImageToTexture` API, for older pages
 
 ### What you will see
 
@@ -30,7 +32,7 @@ On pages that use these APIs, HTML elements (forms, styled text, images, even
 interactive widgets) are rasterized into SVG `foreignObject` snapshots and
 drawn into the canvas as textures every frame. On pages that don't use the
 API, the extension does nothing — it only activates when a canvas has the
-`layoutsubtree` attribute.
+`content="drawable"` (or legacy `layoutsubtree`) attribute.
 
 ### Live demo
 
@@ -95,8 +97,8 @@ Required screenshots (1280×800 or 640×400):
    Emphasize that this is not just a CSS overlay.
 
 5. **API reference / documentation shot** (optional)
-   Caption: *"Polyfills `drawElementImage`, `texElementImage2D`,
-   `copyElementImageToTexture`, `onpaint`, and `requestPaint`."*
+   Caption: *"Polyfills `drawElementImage`, `texElementSubImage2D`,
+   `drawElementImageToTexture`, `updateElementGeometry`, `onpaint`, and `requestPaint`."*
    A simple slide listing the patched APIs.
 
 ---

@@ -12,7 +12,8 @@ Polyfill for the [WICG HTML-in-Canvas](https://github.com/WICG/html-in-canvas) p
 ## Features
 
 - **HTML-in-Canvas polyfill** — implements the WICG API in every browser (Safari, Firefox, iOS, Android); not just Chrome Canary.
-- **Fast path** — uses native `texElementImage2D` / `copyElementImageToTexture` when available, falls back to SVG foreignObject rasterization otherwise.
+- **Current and legacy API** — implements the Chromium 155+ API (`content="drawable"`, `texElementSubImage2D`, `drawElementImageToTexture`, `updateElementGeometry`, …) and keeps the earlier `layoutsubtree` API working for older three.js.
+- **Fast path** — steps aside when the browser implements HTML-in-Canvas natively; falls back to SVG foreignObject rasterization otherwise.
 - **Pseudo-classes** — `:hover`, `:focus`, `:active`, `:focus-visible`, `:focus-within` render correctly on 3D surfaces.
 - **CSS animations & transitions** — spinners, keyframes, gradient shifts all render live into the texture.
 - **Scrollable content, caret, selection** — measured from the live DOM and composited into the rasterized texture.
@@ -66,11 +67,11 @@ Canonical importmap for the CDN deployment:
 
 ### Polyfill only (no three.js)
 
-The polyfill installs every WICG HTML-in-Canvas API onto the browser's own prototypes, so any `<canvas layoutsubtree>` works with the standard specification:
+The polyfill installs every WICG HTML-in-Canvas API onto the browser's own prototypes, so any `<canvas content="drawable">` works with the standard specification:
 
 ```html
-<canvas id="c" layoutsubtree>
-  <div id="content" style="width:400px;height:300px">
+<canvas id="c" content="drawable">
+  <div id="content" drawable style="width:400px;height:300px">
     <h1>Hello from HTML</h1>
     <button>Click me</button>
   </div>
@@ -94,8 +95,8 @@ The polyfill installs every WICG HTML-in-Canvas API onto the browser's own proto
 This mirrors the upstream three.js `webgl_materials_texture_html` example — on three >= 0.184 our `HTMLTexture` *is* the native class; on older three.js it's a fallback that captures the element as a canvas and rides three.js's standard texture pipeline. Your code is the same either way.
 
 ```html
-<canvas id="canvas" layoutsubtree>
-  <div id="content" style="width:512px;height:512px;padding:20px;background:white;font-size:24px;">
+<canvas id="canvas" content="drawable">
+  <div id="content" drawable style="width:512px;height:512px;padding:20px;background:white;font-size:24px;">
     <h1>Hello from HTML</h1>
     <button onclick="this.textContent='Clicked!'">Click me</button>
     <input type="text" placeholder="Type here">
@@ -178,24 +179,42 @@ Bonus over the three.js version: backface culling — when a face's normal point
 
 ## What gets polyfilled
 
-The polyfill implements the full [WICG HTML-in-Canvas](https://github.com/WICG/html-in-canvas) API surface:
+The polyfill implements the [WICG HTML-in-Canvas](https://github.com/WICG/html-in-canvas) API surface as shipped in Chromium 155+ ([#174](https://github.com/WICG/html-in-canvas/issues/174), [#179](https://github.com/WICG/html-in-canvas/issues/179)):
 
-| API                                           | Target                     | Description                                                                                                                    |
-|-----------------------------------------------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `layoutsubtree`                               | `HTMLCanvasElement`        | Attribute that opts canvas children into layout                                                                                |
-| `onpaint`                                     | `HTMLCanvasElement`        | Event fired when children need re-rendering                                                                                    |
-| `requestPaint()`                              | `HTMLCanvasElement`        | Request a paint event on the next frame                                                                                        |
-| `captureElementImage(element)`                | `HTMLCanvasElement`        | Capture a child element's rendered snapshot                                                                                    |
-| `getElementTransform(element, drawTransform)` | `HTMLCanvasElement`        | CSS transform to align a DOM overlay with the drawn position                                                                   |
-| `drawElementImage(element, x, y)`             | `CanvasRenderingContext2D` | Draw a child element onto a 2D canvas. Returns a `DOMMatrix`.                                                                  |
-| `texElementImage2D(target, level, …, element)`| `WebGLRenderingContext`    | Upload a child element as a WebGL texture                                                                                      |
-| `copyElementImageToTexture(element, …, dest)` | `GPUQueue`                 | Upload a child element as a WebGPU texture                                                                                     |
+| API                                                          | Target                     | Description                                                                                       |
+|--------------------------------------------------------------|----------------------------|---------------------------------------------------------------------------------------------------|
+| `content="drawable"` / `canvas.content`                      | `HTMLCanvasElement`        | Opts canvas children into layout and drawing                                                      |
+| `drawable`                                                   | canvas children            | Marks an element as drawable (not enforced by the polyfill)                                       |
+| `onpaint` / `paint` event                                    | `HTMLCanvasElement`        | Fired when children need re-rendering, with `changedElements`                                     |
+| `requestPaint()`                                             | `HTMLCanvasElement`        | Request a paint event on the next frame                                                           |
+| `captureElementImage(element)`                               | `HTMLCanvasElement`        | Snapshot of a child element (accepted wherever an `ElementImage` is)                              |
+| `getElementImageDefaultSize(element)`                        | `HTMLCanvasElement`        | `{width, height}` of the snapshot in canvas pixels (CSS size × `canvas.width / clientWidth`)      |
+| `updateElementGeometry(element, {canvasTransform})`          | `HTMLCanvasElement`        | Position the element's DOM box (hit testing, focus) where it is drawn, in canvas CSS px           |
+| `clearElementGeometry(element)`                              | `HTMLCanvasElement`        | Reset the element's geometry                                                                      |
+| `getElementTransform(element)`                               | `HTMLCanvasElement`        | The current canvas transform of the element, or identity                                          |
+| `drawElementImage(element, [sx, sy, sw, sh,] dx, dy[, dw, dh][, options])` | `CanvasRenderingContext2D` | Draw a child element. Keeps its DOM geometry in sync unless `{preserveElementGeometry: true}` |
+| `texElementSubImage2D(target, level, x, y, element, config?)`| `WebGL(2)RenderingContext` | Copy a child element into an already allocated texture                                            |
+| `drawElementImageToTexture({source}, {texture, size?})`      | `GPUQueue`                 | Copy a child element into a WebGPU texture                                                        |
+
+`updateElementGeometry`'s `canvasClip` option is accepted but not implemented.
+
+#### Legacy API (Chromium 138–154, three.js r184–r187)
+
+Still supported, so existing pages and older three.js keep working:
+
+| API                                            | Target                     | Description                                                       |
+|------------------------------------------------|----------------------------|-------------------------------------------------------------------|
+| `layoutsubtree`                                | `HTMLCanvasElement`        | Old name of `content="drawable"`                                  |
+| `getElementTransform(element, drawTransform)`  | `HTMLCanvasElement`        | CSS transform to align a DOM overlay with the drawn position      |
+| `drawElementImage(element, x, y)`              | `CanvasRenderingContext2D` | On `layoutsubtree` canvases, returns a `DOMMatrix` and does not move the element |
+| `texElementImage2D(target, level, …, element)` | `WebGLRenderingContext`    | Allocate and upload a child element as a WebGL texture            |
+| `copyElementImageToTexture(element, …, dest)`  | `GPUQueue`                 | Upload a child element as a WebGPU texture                        |
 
 ## API
 
 ### `installHtmlInCanvasPolyfill(options?)`
 
-Installs the polyfill on all `<canvas layoutsubtree>` elements. Safe to call multiple times — it's idempotent.
+Installs the polyfill on all `<canvas content="drawable">` (and legacy `<canvas layoutsubtree>`) elements. Safe to call multiple times — it's idempotent.
 
 | Option       | Type      | Default | Description                                                                                |
 |--------------|-----------|---------|--------------------------------------------------------------------------------------------|
@@ -219,14 +238,24 @@ getHtmlRenderer().invalidatePageStylesCss()  // re-collect page styles after a r
 
 Drop-in replacement for `THREE.HTMLTexture` (three.js >= 0.184).
 
-- **three.js >= 0.184:** this *is* the native class — re-exported unchanged. `texture.image === element`, and three.js's own `WebGLTextures.setTexture2D` handles the upload via `texElementImage2D`.
+- **three.js >= 0.184:** this *is* the native class — re-exported unchanged. `texture.image === element`, and three.js's own `WebGLTextures.setTexture2D` handles the upload (via `texElementSubImage2D` on r188+, `texElementImage2D` on r184–r187).
 - **three.js 0.150–0.183:** a fallback subclass. On every `paint` event from the parent canvas it calls `captureElementImage(element)` and assigns the resulting 2D canvas to `texture.image`. three.js's standard upload path handles it from there — `flipY`, colour space, state tracking all correct. The original element is kept in `texture._sourceElement` so the interaction managers can find it.
 
-Requirement on the fallback path: append the element to a `<canvas layoutsubtree>` **before** constructing the texture. (Native `HTMLTexture` auto-appends from inside three.js's upload branch; we can't hook that on older versions.)
+Requirement on the fallback path: append the element to a `<canvas content="drawable">` **before** constructing the texture. (Native `HTMLTexture` auto-appends from inside three.js's upload branch; we can't hook that on older versions.)
+
+**three.js r184–r187 on Chromium 155+:** these versions use the pre-155 API (`layoutsubtree`, `texElementImage2D`), which Chromium 155+ no longer ships, so their `HTMLTexture` only works through the polyfill there. Force it when the browser lacks that API (r188+ uses the current API and needs only the usual check):
+
+```js
+if ( ! ( 'texElementImage2D' in WebGL2RenderingContext.prototype ) ) {
+  installHtmlInCanvasPolyfill( { force: true } )
+}
+```
+
+The same applies to the fallback path on three.js < 0.184, which needs `captureElementImage()` to return a canvas.
 
 ### `InteractionManager`
 
-Port of `three/addons/interaction/InteractionManager.js`. Positions the HTML element of each registered mesh's `HTMLTexture` using a single CSS `matrix3d` transform per frame, so the browser dispatches pointer events natively to the real HTML.
+Port of `three/addons/interaction/InteractionManager.js`. Positions the HTML element of each registered mesh's `HTMLTexture` once per frame, so the browser dispatches pointer events natively to the real HTML. Uses `canvas.updateElementGeometry()` when available (Chromium 155+ or this polyfill), and a CSS `matrix3d` transform otherwise.
 
 ```ts
 const im = new InteractionManager()
@@ -295,7 +324,7 @@ Extra over the three.js version: backface culling — when a face's normal point
 | Safari, iOS Safari | Full | Polyfill |
 | Firefox | Full | Polyfill |
 | Android Chrome / WebView | Full | Polyfill |
-| Chrome Canary (with `chrome://flags/#canvas-draw-element`) | Native fast-path + polyfill fallback | Direct `texElementImage2D` / `copyElementImageToTexture` when installed |
+| Chrome 155+ with HTML-in-Canvas enabled | Native | Polyfill steps aside (`?polyfillHIC` forces it) |
 
 The HTML-in-Canvas API is a [WICG proposal](https://github.com/WICG/html-in-canvas) currently in developer trial in Chrome Canary, with an origin trial planned for Chrome M148–M151. This polyfill ensures your code works today and transparently uses the native fast-path the moment a browser ships it.
 
@@ -331,7 +360,7 @@ The HTML-in-Canvas API is a [WICG proposal](https://github.com/WICG/html-in-canv
 | [webxr-ar](examples/webxr-ar.html) | [Live](https://repalash.com/three-html-render/examples/webxr-ar.html) | AR panel anchored to a real-world surface (requires ARCore). |
 | [focus-ring](examples/focus-ring.html) | [Live](https://repalash.com/three-html-render/examples/focus-ring.html) | WebGL focus-glow shader reading from the HTML texture. By Matt Rothenberg. |
 | [webGL-text-input](examples/webGL-text-input.html) | [Live](https://repalash.com/three-html-render/examples/webGL-text-input.html) | Multi-face cube with `InteractionManagerStandalone` — no three.js. |
-| [jelly-slider](examples/webgpu-jelly-slider/index.html) | [Live](https://repalash.com/three-html-render/examples/webgpu-jelly-slider/index.html) | WebGPU sample using `copyElementImageToTexture`. |
+| [jelly-slider](examples/webgpu-jelly-slider/index.html) | [Live](https://repalash.com/three-html-render/examples/webgpu-jelly-slider/index.html) | WebGPU sample using `drawElementImageToTexture`. |
 | [webGL](examples/webGL.html) | [Live](https://repalash.com/three-html-render/examples/webGL.html) | Basic gl-matrix WebGL scene. |
 | [complex-text](examples/complex-text.html) | [Live](https://repalash.com/three-html-render/examples/complex-text.html) | RTL, vertical writing modes, emoji, inline SVG / images. |
 | [text-input](examples/text-input.html) | [Live](https://repalash.com/three-html-render/examples/text-input.html) | 2D form with caret and selection. |

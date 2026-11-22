@@ -299,8 +299,9 @@
     <p class="lede">
         <b>three-html-render</b> brings the <code>HTMLCanvasElement</code>
         API extensions from the W3C draft
-        (<code>requestPaint</code>, <code>texElementImage2D</code>,
-        <code>captureElementImage</code>) to every modern browser, plus
+        (<code>requestPaint</code>, <code>texElementSubImage2D</code>,
+        <code>drawElementImageToTexture</code>, <code>updateElementGeometry</code>)
+        to every modern browser, plus
         the three.js helpers to drop live HTML into a WebGL or WebGPU
         scene &mdash; <em>interactive</em>, not a screenshot.
     </p>
@@ -313,7 +314,7 @@
     <div class="install">
         <div class="label">One-liner <br><span style="text-transform:none;letter-spacing:0;color:#8a8a8a;font-size:11px;">drop into any page</span></div>
         <pre>&lt;<span class="tok-k">script</span> <span class="tok-k">src</span>=<span class="tok-s">"https://cdn.jsdelivr.net/npm/three-html-render/dist/polyfill.js"</span>&gt;&lt;/<span class="tok-k">script</span>&gt;
-<span class="tok-c">// HTML-in-Canvas API is now patched onto every &lt;canvas layoutsubtree&gt;.</span></pre>
+<span class="tok-c">// HTML-in-Canvas API is now patched onto every &lt;canvas content="drawable"&gt;.</span></pre>
         <div class="label">npm</div>
         <pre><span class="tok-k">npm</span> install three-html-render</pre>
         <div class="label">Use</div>
@@ -360,7 +361,7 @@ material.map = <span class="tok-k">new</span> HTMLTexture(element)
             <a class="card" href="examples/three-html-webgpu.html">
                 <span class="tag">three.js · webgpu</span>
                 <h3 class="card-title">three-html-webgpu</h3>
-                <p class="desc">The same demo on <code>WebGPURenderer</code> via <code>copyElementImageToTexture</code>.</p>
+                <p class="desc">The same demo on <code>WebGPURenderer</code>, uploading through the WebGPU queue.</p>
             </a>
             <a class="card" href="examples/three-html-webgpu-raycast.html">
                 <span class="tag">three.js · webgpu · raycast</span>
@@ -417,7 +418,7 @@ material.map = <span class="tok-k">new</span> HTMLTexture(element)
             <a class="card" href="examples/webgpu-jelly-slider/index.html">
                 <span class="tag">webgpu</span>
                 <h3 class="card-title">jelly slider</h3>
-                <p class="desc">WebGPU sample using <code>copyElementImageToTexture</code> for the HTML readout.</p>
+                <p class="desc">WebGPU sample using <code>drawElementImageToTexture</code> for the HTML readout.</p>
             </a>
         </div>
     </div>

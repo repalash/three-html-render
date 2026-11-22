@@ -27,7 +27,7 @@ Open <http://localhost:5173> — you'll land on the examples index.
 
 ```
 src/
-  htmlInCanvasPolyfill.ts      - polyfill entry (requestPaint, onpaint, texElementImage2D, …)
+  htmlInCanvasPolyfill.ts      - polyfill entry (requestPaint, onpaint, texElementSubImage2D, updateElementGeometry, …)
   htmlRenderer.ts              - internal SVG-foreignObject rasterizer
   htmlTexture.ts               - HTMLTexture (native re-export or fallback)
   interactionManager.ts        - upstream-parity InteractionManager port
